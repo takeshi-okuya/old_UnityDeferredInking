@@ -20,7 +20,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs: []
     m_Floats:
-    - _DepthThreshold: 2
-    - _OutlineWidth: 0.003
+    - _DepthThreshold: 1
+    - _OutlineWidth: 0.005
     m_Colors:
     - _Color: {r: 0, g: 0, b: 0, a: 1}
