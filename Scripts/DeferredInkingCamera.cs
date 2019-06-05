@@ -12,15 +12,15 @@ namespace WCGL
 
         Camera cam;
         CommandBuffer commandBuffer;
-        RenderTexture renderTexture;
+        RenderTexture lineBuffer;
 
         void Start() { } //for Inspector ON_OFF
 
         void initRenderTexture()
         {
-            renderTexture = new RenderTexture(cam.pixelWidth, cam.pixelHeight, 16);
-            renderTexture.name = "DeferredInking";
-            renderTexture.antiAliasing = 4;
+            lineBuffer = new RenderTexture(cam.pixelWidth, cam.pixelHeight, 16);
+            lineBuffer.name = "DeferredInking_line";
+            lineBuffer.antiAliasing = 4;
         }
 
         void Awake()
@@ -47,13 +47,13 @@ namespace WCGL
 
         private void OnPreRender()
         {
-            if (renderTexture.width != cam.pixelWidth || renderTexture.height != cam.pixelHeight)
+            if (lineBuffer.width != cam.pixelWidth || lineBuffer.height != cam.pixelHeight)
             {
-                renderTexture.Release();
+                lineBuffer.Release();
                 initRenderTexture();
             }
 
-            commandBuffer.SetRenderTarget(renderTexture);
+            commandBuffer.SetRenderTarget(lineBuffer);
             commandBuffer.ClearRenderTarget(true, true, Color.clear);
 
             foreach(var model in DeferredInkingModel.Instances)
@@ -70,7 +70,7 @@ namespace WCGL
                 }
             }
 
-            commandBuffer.Blit(renderTexture, BuiltinRenderTextureType.CameraTarget, DrawMaterial);
+            commandBuffer.Blit(lineBuffer, BuiltinRenderTextureType.CameraTarget, DrawMaterial);
         }
 
         private void OnPostRender()
