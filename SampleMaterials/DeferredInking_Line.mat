@@ -20,6 +20,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs: []
     m_Floats:
+    - _DepthBias: 0.005
     - _DepthThreshold: 1
     - _OutlineWidth: 0.005
     m_Colors:
