@@ -147,19 +147,26 @@
 
             float id(float2 uv)
             {
-                float2 sum = 0;
+                float3x3 modelIDSub, meshIDSub;
+                float2 selfID = float2(modelID, meshID);
+
                 for (int y = -1; y <= 1; y++)
                 {
                     for (int x = -1; x <= 1; x++)
                     {
                         float2 _uv = uv + float2(x, y) * _GBuffer_TexelSize;
                         float4 g = _GBuffer.Sample(my_point_clamp_sampler, _uv);
-                        float GBufferID = g.g * 255.0f;
-                        sum += abs(g.xy * 255.0f - float2(modelID, meshID));
+                        float2 sub = g.xy * 255.0f - selfID;
+                        modelIDSub[y + 1][x + 1] = sub.x;
+                        meshIDSub[y + 1][x + 1] = sub.y;
                     }
                 }
 
-                bool isDraw = any(step(float2(0.1f, 0.1f), sum));
+                modelIDSub = step(0.1f, abs(modelIDSub));
+                meshIDSub = step(0.1f, abs(meshIDSub));
+                float3x3 sum = modelIDSub + meshIDSub;
+
+                bool isDraw = any(sum) && !all(sum);
                 return (float)isDraw - 0.1f;
             }
 
