@@ -11,12 +11,13 @@ namespace WCGL
         public struct Mesh
         {
             public Renderer mesh;
-            public uint meshID;
+            [Range(0, 255)] public int meshID;
         }
 
         public static List<DeferredInkingModel> Instances = new List<DeferredInkingModel>();
 
         public Material material;
+        [Range(1, 255)] public int modelID = 255;
         public List<Mesh> meshes = new List<Mesh>();
 
         void Start() { } //for Inspector ON_OFF

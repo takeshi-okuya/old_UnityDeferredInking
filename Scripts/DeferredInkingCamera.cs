@@ -80,12 +80,14 @@ namespace WCGL
                 var mat = matFunc(model);
                 if (mat == null) continue;
 
-                foreach(var mesh in model.meshes)
+                commandBuffer.SetGlobalFloat("modelID", model.modelID);
+
+                foreach (var mesh in model.meshes)
                 {
                     var renderer = mesh.mesh;
                     if (renderer == null || renderer.enabled == false) continue;
 
-                    commandBuffer.SetGlobalInt("meshID", (int)mesh.meshID);
+                    commandBuffer.SetGlobalFloat("meshID", mesh.meshID);
                     commandBuffer.DrawRenderer(renderer, mat);
                 }
             }

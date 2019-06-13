@@ -49,7 +49,8 @@
             float4 _GBuffer_TexelSize;
             SamplerState my_point_clamp_sampler;
 
-            uint meshID;
+            float modelID;
+            float meshID;
 
             Texture2D _CameraDepthTexture;
             float4 _CameraDepthTexture_TexelSize;
@@ -146,7 +147,7 @@
 
             float id(float2 uv)
             {
-                float sum = 0;
+                float2 sum = 0;
                 for (int y = -1; y <= 1; y++)
                 {
                     for (int x = -1; x <= 1; x++)
@@ -154,11 +155,12 @@
                         float2 _uv = uv + float2(x, y) * _GBuffer_TexelSize;
                         float4 g = _GBuffer.Sample(my_point_clamp_sampler, _uv);
                         float GBufferID = g.g * 255.0f;
-                        sum += abs(GBufferID - meshID);
+                        sum += abs(g.xy * 255.0f - float2(modelID, meshID));
                     }
                 }
 
-                return sum - 0.1;
+                bool isDraw = any(step(float2(0.1f, 0.1f), sum));
+                return (float)isDraw - 0.1f;
             }
 
             fixed4 frag (g2f i) : SV_Target
