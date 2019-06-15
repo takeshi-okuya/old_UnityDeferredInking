@@ -61,8 +61,15 @@ namespace WCGL
                 initRenderTexture();
             }
 
+            //commandBuffer.Blit(RenderTexture.active.depthBuffer, gBuffer.depthBuffer);
+
+            var depth = new RenderTargetIdentifier(BuiltinRenderTextureType.Depth);
+            commandBuffer.SetRenderTarget(gBuffer, depth);
+            commandBuffer.ClearRenderTarget(false, true, Color.clear);
             render(gBuffer, model => GBufferMaterial);
 
+            commandBuffer.SetRenderTarget(lineBuffer);
+            commandBuffer.ClearRenderTarget(true, true, Color.clear);
             commandBuffer.SetGlobalTexture("_GBuffer", gBuffer);
             render(lineBuffer, model => model.material);
             commandBuffer.Blit(lineBuffer, BuiltinRenderTextureType.CameraTarget, DrawMaterial);
@@ -70,9 +77,6 @@ namespace WCGL
 
         private void render(RenderTexture target, Func<DeferredInkingModel, Material> matFunc)
         {
-            commandBuffer.SetRenderTarget(target);
-            commandBuffer.ClearRenderTarget(true, true, Color.clear);
-
             foreach(var model in DeferredInkingModel.Instances)
             {
                 if (model.isActiveAndEnabled == false) continue;

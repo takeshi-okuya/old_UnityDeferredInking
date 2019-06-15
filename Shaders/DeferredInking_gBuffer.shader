@@ -7,6 +7,7 @@
     {
         Tags { "RenderType"="Opaque" }
         LOD 100
+        ZTest Equal
 
         Pass
         {
