@@ -43,7 +43,6 @@
             fixed4 _Color;
             float _OutlineWidth;
             float _DepthThreshold;
-            float _DepthBias;
 
             Texture2D _GBuffer;
             float4 _GBuffer_TexelSize;
@@ -145,9 +144,9 @@
                 return sqrt(lx * lx + ly * ly);
             }
 
-            float id(float2 uv)
+            bool3x3 compareSameIDs(float2 uv)
             {
-                float3x3 modelIDSub, meshIDSub;
+                bool3x3 dst;
                 float2 selfID = float2(modelID, meshID);
 
                 for (int y = -1; y <= 1; y++)
@@ -156,18 +155,44 @@
                     {
                         float2 _uv = uv + float2(x, y) * _GBuffer_TexelSize;
                         float4 g = _GBuffer.Sample(my_point_clamp_sampler, _uv);
-                        float2 sub = g.xy * 255.0f - selfID;
-                        modelIDSub[y + 1][x + 1] = sub.x;
-                        meshIDSub[y + 1][x + 1] = sub.y;
+                        float2 sub = abs(g.xy * 255.0f - selfID);
+                        dst[y + 1][x + 1] = sub.x + sub.y < 0.1f;
                     }
                 }
 
-                modelIDSub = step(0.1f, abs(modelIDSub));
-                meshIDSub = step(0.1f, abs(meshIDSub));
-                float3x3 sum = modelIDSub + meshIDSub;
+                return dst;
+            }
 
-                bool isDraw = any(sum) && !all(sum);
-                return (float)isDraw - 0.1f;
+            float3x3 sampleDepths(float2 uv)
+            {
+                float3x3 dst;
+
+                for (int y = -1; y <= 1; y++)
+                {
+                    for (int x = -1; x <= 1; x++)
+                    {
+                        float2 _uv = uv + float2(x, y) * _GBuffer_TexelSize;
+                        dst[y + 1][x + 1] = DECODE_EYEDEPTH(_CameraDepthTexture.Sample(my_point_clamp_sampler, _uv)).x;
+                    }
+                }
+
+                return dst;
+            }
+
+            float detectDifferentID(bool3x3 isSameIDs, float3x3 depths, float centerDepth)
+            {
+                bool isDraw = false;
+
+                for (int y = 0; y <= 2; y++)
+                {
+                    for (int x = 0; x <= 2; x++)
+                    {
+                        bool _isDraw = !isSameIDs[y][x] && (centerDepth < depths[y][x]);
+                        isDraw = isDraw || _isDraw;
+                    }
+                }
+
+                return isDraw;
             }
 
             fixed4 frag (g2f i) : SV_Target
@@ -175,13 +200,18 @@
                 float2 uv = (i.center.xy / i.center.w + 1.0f) * 0.5f;
                 uv.y = 1 - uv.y;
 
-                float cameraDepth = DECODE_EYEDEPTH(_CameraDepthTexture.Sample(my_point_clamp_sampler, uv)).x;
-                clip(cameraDepth - i.center.w + _DepthBias);
+                bool3x3 isSameIDs = compareSameIDs(uv);
+                clip(any(isSameIDs) - 0.1f);
 
-                clip(id(uv));
+                bool isDraw = false;
+                float3x3 depths = sampleDepths(uv);
+
+                isDraw = isDraw || detectDifferentID(isSameIDs, depths, i.center.w);
 
                 //float edge = depthSobel(i.center);
                 //clip(edge - _DepthThreshold);
+
+                clip(isDraw - 0.1f);
 
                 return _Color;
             }
