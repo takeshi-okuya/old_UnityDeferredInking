@@ -4,8 +4,10 @@
     {
         _Color("Color", Color) = (0, 0, 0, 1)
         _OutlineWidth("Outline Width", FLOAT) = 0.003
+        [Space]
+        [Toggle] _Use_Object_ID("Use Object ID", Float) = 1
+        [Space]
         _DepthThreshold("Threshold_Depth", FLOAT) = 2.0
-        _DepthBias("Depth_Bias", FLOAT) = 0.005
     }
     SubShader
     {
@@ -22,6 +24,8 @@
             #pragma fragment frag
 
             #include "UnityCG.cginc"
+
+            #pragma multi_compile _ _USE_OBJECT_ID_ON
 
             struct appdata
             {
@@ -206,7 +210,9 @@
                 bool isDraw = false;
                 float3x3 depths = sampleDepths(uv);
 
+                #ifdef _USE_OBJECT_ID_ON
                 isDraw = isDraw || detectDifferentID(isSameIDs, depths, i.center.w);
+                #endif
 
                 //float edge = depthSobel(i.center);
                 //clip(edge - _DepthThreshold);
