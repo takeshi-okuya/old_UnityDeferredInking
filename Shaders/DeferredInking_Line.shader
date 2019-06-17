@@ -7,6 +7,7 @@
         [Space]
         [Toggle] _Use_Object_ID("Use Object ID", Float) = 1
         [Space]
+        [Toggle] _Use_Depth("Use Depth", Float) = 0
         _DepthThreshold("Threshold_Depth", FLOAT) = 2.0
     }
     SubShader
@@ -26,6 +27,7 @@
             #include "UnityCG.cginc"
 
             #pragma multi_compile _ _USE_OBJECT_ID_ON
+            #pragma multi_compile _ _USE_DEPTH_ON
 
             struct appdata
             {
@@ -110,42 +112,15 @@
                 generateLine(input[2], input[0], aspect, ts);
             }
 
-            float sampleDepth(float2 uv)
+            bool depthSobel(float3x3 depths)
             {
-                float4 cameraDepth = _CameraDepthTexture.Sample(my_linear_clamp_sampler, uv);
-                return DECODE_EYEDEPTH(cameraDepth.xy).x;
-            }
-
-            float3x3 sampleDepth3x3(float2 uv)
-            {
-                float3x3 o;
-
-                o[0].x = sampleDepth(uv - _CameraDepthTexture_TexelSize.xy);
-                o[0].y = sampleDepth(uv + float2(0, -_CameraDepthTexture_TexelSize.y));
-                o[0].z = sampleDepth(uv + float2(_CameraDepthTexture_TexelSize.x, -_CameraDepthTexture_TexelSize.y));
-
-                o[1].x = sampleDepth(uv + float2(-_CameraDepthTexture_TexelSize.x, 0));
-                //o[1].y = sampleDepth(uv);
-                o[1].z = sampleDepth(uv + float2(_CameraDepthTexture_TexelSize.x, 0));
-
-                o[2].x = sampleDepth(uv + float2(-_CameraDepthTexture_TexelSize.x, _CameraDepthTexture_TexelSize.y));
-                o[2].y = sampleDepth(uv + float2(0, _CameraDepthTexture_TexelSize.y));
-                o[2].z = sampleDepth(uv + _CameraDepthTexture_TexelSize.xy);
-
-                return o;
-            }
-
-            float depthSobel(float2 uv)
-            {
-                float3x3 d = sampleDepth3x3(uv);
-
-                float2 sumsX = float2(1, -1) * d[0].xz + float2(2, -2) * d[1].xz + float2(1, -1) * d[2].xz;
+                float2 sumsX = float2(1, -1) * depths[0].xz + float2(2, -2) * depths[1].xz + float2(1, -1) * depths[2].xz;
                 float lx = sumsX.x + sumsX.y;
 
-                float3 sumsY = float3(1, 2, 1) * d[0] + float3(-1, -2, -1) * d[2];
+                float3 sumsY = float3(1, 2, 1) * depths[0] + float3(-1, -2, -1) * depths[2];
                 float ly = sumsY.x + sumsY.y + sumsY.z;
 
-                return sqrt(lx * lx + ly * ly);
+                return sqrt(lx * lx + ly * ly) >= _DepthThreshold;
             }
 
             bool3x3 compareSameIDs(float2 uv)
@@ -214,8 +189,9 @@
                 isDraw = isDraw || detectDifferentID(isSameIDs, depths, i.center.w);
                 #endif
 
-                //float edge = depthSobel(i.center);
-                //clip(edge - _DepthThreshold);
+                #ifdef _USE_DEPTH_ON
+                isDraw = isDraw || depthSobel(depths);
+                #endif
 
                 clip(isDraw - 0.1f);
 
