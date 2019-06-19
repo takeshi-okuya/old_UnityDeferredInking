@@ -39,10 +39,22 @@
             }
 
             sampler2D _MainTex;
+            float4 _MainTex_TexelSize;
+            float4 Filter[3];
 
             fixed4 frag (v2f i) : SV_Target
             {
-                fixed4 col = tex2D(_MainTex, i.uv);
+                fixed4 col = fixed4(0,0,0,0);
+
+                for (int y = -1; y <= 1; y++)
+                {
+                    for (int x = -1; x <= 1; x++)
+                    {
+                        float2 _uv = i.uv + float2(x, y) * _MainTex_TexelSize;
+                        col += Filter[y + 1][x + 1] * tex2D(_MainTex, _uv);
+                    }
+                }
+
                 clip(col.w - 0.001);
                 return col;
             }

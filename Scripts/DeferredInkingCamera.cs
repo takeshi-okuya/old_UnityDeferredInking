@@ -15,6 +15,10 @@ namespace WCGL
         CommandBuffer commandBuffer;
         RenderTexture gBuffer, lineBuffer;
 
+        [Range(0.1f, 3.0f)]
+        public float sigma = 1.0f;
+        Vector4[] filter = new Vector4[3];
+
         void Start() { } //for Inspector ON_OFF
 
         void initRenderTexture()
@@ -54,6 +58,24 @@ namespace WCGL
             }
         }
 
+        void renewFilter()
+        {
+            float sum = 0;
+            for (int y = -1; y <= 1; y++)
+            {
+                for (int x = -1; x <= 1; x++)
+                {
+                    float entry = Mathf.Exp(-(x * x + y * y) / (2 * sigma * sigma));
+                    sum += entry;
+                    filter[y + 1][x + 1] = entry;
+                }
+            }
+
+            for(int i=0; i<3; i++)
+            {
+                filter[i] /= sum;
+            }
+        }
         private void OnPreRender()
         {
             if (lineBuffer == null || lineBuffer.width != cam.pixelWidth || lineBuffer.height != cam.pixelHeight)
@@ -61,10 +83,7 @@ namespace WCGL
                 initRenderTexture();
             }
 
-            //commandBuffer.Blit(RenderTexture.active.depthBuffer, gBuffer.depthBuffer);
-
-            var depth = new RenderTargetIdentifier(BuiltinRenderTextureType.Depth);
-            commandBuffer.SetRenderTarget(gBuffer, depth);
+            commandBuffer.SetRenderTarget(gBuffer, BuiltinRenderTextureType.Depth);
             commandBuffer.ClearRenderTarget(false, true, Color.clear);
             render(gBuffer, model => GBufferMaterial);
 
@@ -72,6 +91,9 @@ namespace WCGL
             commandBuffer.ClearRenderTarget(true, true, Color.clear);
             commandBuffer.SetGlobalTexture("_GBuffer", gBuffer);
             render(lineBuffer, model => model.material);
+
+            renewFilter();
+            commandBuffer.SetGlobalVectorArray("Filter", filter);
             commandBuffer.Blit(lineBuffer, BuiltinRenderTextureType.CameraTarget, DrawMaterial);
         }
 
