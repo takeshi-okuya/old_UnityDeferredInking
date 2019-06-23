@@ -6,6 +6,7 @@
     SubShader
     {
         Tags { "RenderType"="Opaque" }
+        Cull [_Cull]
         LOD 100
         ZTest Equal
 

@@ -4,6 +4,7 @@
     {
         _Color("Color", Color) = (0, 0, 0, 1)
         _OutlineWidth("Outline Width", FLOAT) = 0.003
+        [KeywordEnum(Off, Front, Back)] _Cull("Culling", Float) = 0
         [Space]
         [Toggle] _Use_Object_ID("Use Object ID", Float) = 1
         [Space]
@@ -26,6 +27,7 @@
 
             #include "UnityCG.cginc"
 
+            #pragma multi_compile _CULL_OFF _CULL_FRONT _CULL_BACK
             #pragma multi_compile _ _USE_OBJECT_ID_ON
             #pragma multi_compile _ _USE_DEPTH_ON
 
@@ -70,6 +72,19 @@
                 return o;
             }
 
+            bool culling(triangle v2g input[3])
+            {
+                float3 v01 = float3(input[1].projXY - input[0].projXY, 0);
+                float3 v02 = float3(input[2].projXY - input[0].projXY, 0);
+                float c = cross(v01, v02).z;
+
+                #ifdef _CULL_FRONT
+                    return c >= 0;
+                #elif _CULL_BACK
+                    return c <= 0;
+                #endif
+            }
+
             void appendPoint(v2g p, float2 translate, float2 right, inout g2f o, inout TriangleStream<g2f> ts)
             {
                 float2 xy = (p.projXY + translate) * p.vertex.w;
@@ -100,10 +115,9 @@
             [maxvertexcount(12)]
             void geom(triangle v2g input[3], uint pid : SV_PrimitiveID, inout TriangleStream<g2f> ts)
             {
-                float3 v01 = float3(input[1].projXY - input[0].projXY, 0);
-                float3 v02 = float3(input[2].projXY - input[0].projXY, 0);
-
-                if (cross(v01, v02).z <= 0) return;
+                #ifndef _CULL_OFF
+                    if (culling(input) == true) return;
+                #endif
 
                 float aspect = (-UNITY_MATRIX_P[1][1]) / UNITY_MATRIX_P[0][0];
 
@@ -186,11 +200,11 @@
                 float3x3 depths = sampleDepths(uv);
 
                 #ifdef _USE_OBJECT_ID_ON
-                isDraw = isDraw || detectDifferentID(isSameIDs, depths, i.center.w);
+                    isDraw = isDraw || detectDifferentID(isSameIDs, depths, i.center.w);
                 #endif
 
                 #ifdef _USE_DEPTH_ON
-                isDraw = isDraw || depthSobel(depths);
+                    isDraw = isDraw || depthSobel(depths);
                 #endif
 
                 clip(isDraw - 0.1f);

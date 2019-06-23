@@ -85,7 +85,7 @@ namespace WCGL
 
             commandBuffer.SetRenderTarget(gBuffer, BuiltinRenderTextureType.Depth);
             commandBuffer.ClearRenderTarget(false, true, Color.clear);
-            render(gBuffer, model => GBufferMaterial);
+            render(gBuffer, model => GBufferMaterial, true);
 
             commandBuffer.SetRenderTarget(lineBuffer);
             commandBuffer.ClearRenderTarget(true, true, Color.clear);
@@ -97,7 +97,7 @@ namespace WCGL
             commandBuffer.Blit(lineBuffer, BuiltinRenderTextureType.CameraTarget, DrawMaterial);
         }
 
-        private void render(RenderTexture target, Func<DeferredInkingModel, Material> matFunc)
+        private void render(RenderTexture target, Func<DeferredInkingModel, Material> matFunc, bool cullingSetting = false)
         {
             foreach(var model in DeferredInkingModel.Instances)
             {
@@ -114,6 +114,7 @@ namespace WCGL
                     if (renderer == null || renderer.enabled == false) continue;
 
                     commandBuffer.SetGlobalFloat("meshID", mesh.meshID);
+                    if (cullingSetting == true) commandBuffer.SetGlobalInt("_Cull", (int)mesh.gBufferCulling);
                     commandBuffer.DrawRenderer(renderer, mat);
                 }
             }
