@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace WCGL
 {
@@ -12,6 +13,7 @@ namespace WCGL
         {
             public Renderer mesh;
             [Range(0, 255)] public int meshID;
+            public CullMode gBufferCulling;
         }
 
         public static List<DeferredInkingModel> Instances = new List<DeferredInkingModel>();
