@@ -61,7 +61,6 @@
 
             Texture2D _CameraDepthTexture;
             float4 _CameraDepthTexture_TexelSize;
-            SamplerState my_linear_clamp_sampler;
 
             v2g vert (appdata v)
             {
@@ -79,9 +78,17 @@
                 float c = cross(v01, v02).z;
 
                 #ifdef _CULL_FRONT
-                    return c >= 0;
+                    #ifdef UNITY_REVERSED_Z
+                        return c >= 0;
+                    #else
+                        return c <= 0;
+                    #endif
                 #elif _CULL_BACK
-                    return c <= 0;
+                    #ifdef UNITY_REVERSED_Z
+                        return c <= 0;
+                    #else
+                        return c >= 0;
+                    #endif
                 #endif
             }
 
@@ -191,7 +198,9 @@
             fixed4 frag (g2f i) : SV_Target
             {
                 float2 uv = (i.center.xy / i.center.w + 1.0f) * 0.5f;
-                uv.y = 1 - uv.y;
+                #if UNITY_UV_STARTS_AT_TOP == 1
+                    uv.y = 1 - uv.y;
+                #endif
 
                 bool3x3 isSameIDs = compareSameIDs(uv);
                 clip(any(isSameIDs) - 0.1f);

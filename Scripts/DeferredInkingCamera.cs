@@ -26,11 +26,15 @@ namespace WCGL
             if (gBuffer != null) gBuffer.Release();
             gBuffer = new RenderTexture(cam.pixelWidth, cam.pixelHeight, 16);
             gBuffer.name = "DeferredInking_G-Buffer";
+            gBuffer.wrapMode = TextureWrapMode.Clamp;
+            gBuffer.filterMode = FilterMode.Point;
 
             if (lineBuffer != null) lineBuffer.Release();
             lineBuffer = new RenderTexture(cam.pixelWidth, cam.pixelHeight, 16);
             lineBuffer.name = "DeferredInking_line";
             lineBuffer.antiAliasing = 4;
+            lineBuffer.wrapMode = TextureWrapMode.Clamp;
+            lineBuffer.filterMode = FilterMode.Point;
         }
 
         void Awake()
