@@ -59,8 +59,8 @@
             float modelID;
             float meshID;
 
-            Texture2D _CameraDepthTexture;
-            float4 _CameraDepthTexture_TexelSize;
+            Texture2D _GBufferDepth;
+            float4 _GBufferDepth_TexelSize;
 
             v2g vert (appdata v)
             {
@@ -171,8 +171,8 @@
                 {
                     for (int x = -1; x <= 1; x++)
                     {
-                        float2 _uv = uv + float2(x, y) * _GBuffer_TexelSize;
-                        dst[y + 1][x + 1] = DECODE_EYEDEPTH(_CameraDepthTexture.Sample(my_point_clamp_sampler, _uv)).x;
+                        float2 _uv = uv + float2(x, y) * _GBufferDepth_TexelSize;
+                        dst[y + 1][x + 1] = DECODE_EYEDEPTH(_GBufferDepth.Sample(my_point_clamp_sampler, _uv)).x;
                     }
                 }
 

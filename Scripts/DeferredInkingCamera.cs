@@ -19,22 +19,40 @@ namespace WCGL
         public float sigma = 1.0f;
         Vector4[] filter = new Vector4[3];
 
+        public enum ResolutionMode { Same, X2, X3, Custom}
+        public ResolutionMode gBufferResolutionMode = ResolutionMode.Same;
+        public Vector2Int customGBufferResolution = new Vector2Int(1920, 1080);
+
         void Start() { } //for Inspector ON_OFF
 
-        void initRenderTexture()
+        void resizeRenderTexture()
         {
-            if (gBuffer != null) gBuffer.Release();
-            gBuffer = new RenderTexture(cam.pixelWidth, cam.pixelHeight, 16);
-            gBuffer.name = "DeferredInking_G-Buffer";
-            gBuffer.wrapMode = TextureWrapMode.Clamp;
-            gBuffer.filterMode = FilterMode.Point;
+            var camSize = new Vector2Int(cam.pixelWidth, cam.pixelHeight);
+            Vector2Int gbSize;
 
-            if (lineBuffer != null) lineBuffer.Release();
-            lineBuffer = new RenderTexture(cam.pixelWidth, cam.pixelHeight, 16);
-            lineBuffer.name = "DeferredInking_line";
-            lineBuffer.antiAliasing = 4;
-            lineBuffer.wrapMode = TextureWrapMode.Clamp;
-            lineBuffer.filterMode = FilterMode.Point;
+            if (gBufferResolutionMode == ResolutionMode.Same) { gbSize = camSize; }
+            else if (gBufferResolutionMode == ResolutionMode.X2) { gbSize = camSize * 2; }
+            else if (gBufferResolutionMode == ResolutionMode.X2) { gbSize = camSize * 3; }
+            else { gbSize = customGBufferResolution; }
+
+            if (gBuffer == null || gBuffer.width != gbSize.x || gBuffer.height != gbSize.y)
+            {
+                if (gBuffer != null) gBuffer.Release();
+                gBuffer = new RenderTexture(gbSize.x, gbSize.y, 16);
+                gBuffer.name = "DeferredInking_G-Buffer";
+                gBuffer.wrapMode = TextureWrapMode.Clamp;
+                gBuffer.filterMode = FilterMode.Point;
+            }
+
+            if (lineBuffer == null || lineBuffer.width != cam.pixelWidth || lineBuffer.height != cam.pixelHeight)
+            {
+                if (lineBuffer != null) lineBuffer.Release();
+                lineBuffer = new RenderTexture(cam.pixelWidth, cam.pixelHeight, 16);
+                lineBuffer.name = "DeferredInking_line";
+                lineBuffer.antiAliasing = 4;
+                lineBuffer.wrapMode = TextureWrapMode.Clamp;
+                lineBuffer.filterMode = FilterMode.Point;
+            }
         }
 
         void Awake()
@@ -50,7 +68,7 @@ namespace WCGL
             commandBuffer.name = "DeferredInking";
             cam.AddCommandBuffer(CameraEvent.AfterSkybox, commandBuffer);
 
-            initRenderTexture();
+            resizeRenderTexture();
 
             if (DrawMaterial == null)
             {
@@ -82,18 +100,16 @@ namespace WCGL
         }
         private void OnPreRender()
         {
-            if (lineBuffer == null || lineBuffer.width != cam.pixelWidth || lineBuffer.height != cam.pixelHeight)
-            {
-                initRenderTexture();
-            }
+            resizeRenderTexture();
 
-            commandBuffer.SetRenderTarget(gBuffer, BuiltinRenderTextureType.Depth);
-            commandBuffer.ClearRenderTarget(false, true, Color.clear);
+            commandBuffer.SetRenderTarget(gBuffer);
+            commandBuffer.ClearRenderTarget(true, true, Color.clear);
             render(gBuffer, model => GBufferMaterial, true);
 
             commandBuffer.SetRenderTarget(lineBuffer);
             commandBuffer.ClearRenderTarget(true, true, Color.clear);
             commandBuffer.SetGlobalTexture("_GBuffer", gBuffer);
+            commandBuffer.SetGlobalTexture("_GBufferDepth", gBuffer.depthBuffer);
             render(lineBuffer, model => model.material);
 
             renewFilter();
