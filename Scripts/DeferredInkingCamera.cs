@@ -13,28 +13,58 @@ namespace WCGL
 
         Camera cam;
         CommandBuffer commandBuffer;
-        RenderTexture gBuffer, lineBuffer;
+        RenderTexture gBuffer, gBufferDepth, lineBuffer;
 
         [Range(0.1f, 3.0f)]
         public float sigma = 1.0f;
         Vector4[] filter = new Vector4[3];
 
+        public enum ResolutionMode { Same, X2, X3, Custom}
+        public ResolutionMode gBufferResolutionMode = ResolutionMode.Same;
+        public Vector2Int customGBufferResolution = new Vector2Int(1920, 1080);
+
+        enum RenderPhase { GBuffer, Line }
+
         void Start() { } //for Inspector ON_OFF
 
-        void initRenderTexture()
+        void resizeRenderTexture()
         {
-            if (gBuffer != null) gBuffer.Release();
-            gBuffer = new RenderTexture(cam.pixelWidth, cam.pixelHeight, 16);
-            gBuffer.name = "DeferredInking_G-Buffer";
-            gBuffer.wrapMode = TextureWrapMode.Clamp;
-            gBuffer.filterMode = FilterMode.Point;
+            var camSize = new Vector2Int(cam.pixelWidth, cam.pixelHeight);
+            Vector2Int gbSize;
 
-            if (lineBuffer != null) lineBuffer.Release();
-            lineBuffer = new RenderTexture(cam.pixelWidth, cam.pixelHeight, 16);
-            lineBuffer.name = "DeferredInking_line";
-            lineBuffer.antiAliasing = 4;
-            lineBuffer.wrapMode = TextureWrapMode.Clamp;
-            lineBuffer.filterMode = FilterMode.Point;
+            if (gBufferResolutionMode == ResolutionMode.Same) { gbSize = camSize; }
+            else if (gBufferResolutionMode == ResolutionMode.X2) { gbSize = camSize * 2; }
+            else if (gBufferResolutionMode == ResolutionMode.X2) { gbSize = camSize * 3; }
+            else { gbSize = customGBufferResolution; }
+
+            if (gBuffer == null || gBuffer.width != gbSize.x || gBuffer.height != gbSize.y)
+            {
+                if (gBuffer != null) gBuffer.Release();
+                gBuffer = new RenderTexture(gbSize.x, gbSize.y, 0, RenderTextureFormat.ARGB32);
+                gBuffer.name = "DeferredInking_G-Buffer";
+                gBuffer.wrapMode = TextureWrapMode.Clamp;
+                gBuffer.filterMode = FilterMode.Point;
+            }
+
+            if (gBufferResolutionMode != ResolutionMode.Same &&
+                (gBufferDepth == null || gBufferDepth.width != gbSize.x || gBufferDepth.height != gbSize.y))
+            {
+                if (gBufferDepth != null) gBufferDepth.Release();
+                gBufferDepth = new RenderTexture(gbSize.x, gbSize.y, 16, RenderTextureFormat.Depth);
+                gBufferDepth.name = "DeferredInking_G-BufferDepth";
+                gBufferDepth.wrapMode = TextureWrapMode.Clamp;
+                gBufferDepth.filterMode = FilterMode.Point;
+            }
+
+            if (lineBuffer == null || lineBuffer.width != cam.pixelWidth || lineBuffer.height != cam.pixelHeight)
+            {
+                if (lineBuffer != null) lineBuffer.Release();
+                lineBuffer = new RenderTexture(cam.pixelWidth, cam.pixelHeight, 16);
+                lineBuffer.name = "DeferredInking_line";
+                lineBuffer.antiAliasing = 4;
+                lineBuffer.wrapMode = TextureWrapMode.Clamp;
+                lineBuffer.filterMode = FilterMode.Point;
+            }
         }
 
         void Awake()
@@ -50,7 +80,7 @@ namespace WCGL
             commandBuffer.name = "DeferredInking";
             cam.AddCommandBuffer(CameraEvent.AfterSkybox, commandBuffer);
 
-            initRenderTexture();
+            resizeRenderTexture();
 
             if (DrawMaterial == null)
             {
@@ -80,35 +110,82 @@ namespace WCGL
                 filter[i] /= sum;
             }
         }
+
         private void OnPreRender()
         {
-            if (lineBuffer == null || lineBuffer.width != cam.pixelWidth || lineBuffer.height != cam.pixelHeight)
-            {
-                initRenderTexture();
-            }
+            resizeRenderTexture();
 
-            commandBuffer.SetRenderTarget(gBuffer, BuiltinRenderTextureType.Depth);
+            var depthBuffer = (gBufferResolutionMode == ResolutionMode.Same) ?
+                (RenderTargetIdentifier)BuiltinRenderTextureType.Depth : gBufferDepth;
+            if (depthBuffer == gBufferDepth) renderGBufferZero();
+
+            commandBuffer.SetRenderTarget(gBuffer.colorBuffer, depthBuffer);
             commandBuffer.ClearRenderTarget(false, true, Color.clear);
-            render(gBuffer, model => GBufferMaterial, true);
+            render(gBuffer, RenderPhase.GBuffer);
 
             commandBuffer.SetRenderTarget(lineBuffer);
             commandBuffer.ClearRenderTarget(true, true, Color.clear);
-            commandBuffer.SetGlobalTexture("_GBuffer", gBuffer);
-            render(lineBuffer, model => model.material);
+            commandBuffer.SetGlobalTexture("_GBuffer", gBuffer.colorBuffer);
+            commandBuffer.SetGlobalTexture("_GBufferDepth", depthBuffer);
+            render(lineBuffer, RenderPhase.Line);
 
             renewFilter();
             commandBuffer.SetGlobalVectorArray("Filter", filter);
             commandBuffer.Blit(lineBuffer, BuiltinRenderTextureType.CameraTarget, DrawMaterial);
         }
 
-        private void render(RenderTexture target, Func<DeferredInkingModel, Material> matFunc, bool cullingSetting = false)
+        private void addShadowCaster(Renderer r, Material mat, int meshIdx)
         {
-            foreach(var model in DeferredInkingModel.Instances)
+            int passCount = mat.passCount;
+
+            for (int i = 0; i < passCount; i++)
+            {
+                if (mat.GetPassName(i) == "ShadowCaster")
+                {
+                    commandBuffer.DrawRenderer(r, mat, meshIdx, i);
+                    return;
+                }
+            }
+        }
+
+        private void renderGBufferZero()
+        {
+            commandBuffer.SetRenderTarget(gBuffer, gBufferDepth);
+            commandBuffer.ClearRenderTarget(true, true, Color.clear);
+            commandBuffer.SetGlobalVector("unity_LightShadowBias", Vector4.zero);
+
+            var renderers = FindObjectsOfType<Renderer>();
+            foreach (var r in renderers)
+            {
+                if (r.isVisible == false) continue;
+                var sr = r as SkinnedMeshRenderer;
+
+                var mesh = sr == null ? r.GetComponent<MeshFilter>().sharedMesh : sr.sharedMesh;
+                int subMeshCount = mesh.subMeshCount;
+                var materials = r.sharedMaterials;
+
+                for(int i=0; i<subMeshCount; i++)
+                {
+                    int matIdx = Math.Min(i, materials.Length - 1);
+                    var mat = materials[matIdx];
+                    addShadowCaster(r, mat, i);
+                }
+            }
+        }
+
+        private void render(RenderTexture target, RenderPhase phase)
+        {
+            Material mat = GBufferMaterial;
+
+            foreach (var model in DeferredInkingModel.Instances)
             {
                 if (model.isActiveAndEnabled == false) continue;
 
-                var mat = matFunc(model);
-                if (mat == null) continue;
+                if (phase == RenderPhase.Line)
+                {
+                    mat = model.material;
+                    if (mat == null) continue;
+                }
 
                 commandBuffer.SetGlobalFloat("modelID", model.modelID);
 
@@ -118,7 +195,7 @@ namespace WCGL
                     if (renderer == null || renderer.enabled == false) continue;
 
                     commandBuffer.SetGlobalFloat("meshID", mesh.meshID);
-                    if (cullingSetting == true) commandBuffer.SetGlobalInt("_Cull", (int)mesh.gBufferCulling);
+                    if (phase == RenderPhase.GBuffer) commandBuffer.SetGlobalInt("_Cull", (int)mesh.gBufferCulling);
                     commandBuffer.DrawRenderer(renderer, mat);
                 }
             }
