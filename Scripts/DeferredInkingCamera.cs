@@ -117,17 +117,10 @@ namespace WCGL
 
             var depthBuffer = (gBufferResolutionMode == ResolutionMode.Same) ?
                 (RenderTargetIdentifier)BuiltinRenderTextureType.Depth : gBufferDepth;
+            if (depthBuffer == gBufferDepth) renderGBufferZero();
 
-            if (depthBuffer == BuiltinRenderTextureType.Depth)
-            {
-                commandBuffer.SetRenderTarget(gBuffer.colorBuffer, depthBuffer);
-                commandBuffer.ClearRenderTarget(false, true, Color.clear);
-            }
-            else
-            {
-                renderGBufferZero();
-                commandBuffer.SetRenderTarget(gBuffer.colorBuffer, depthBuffer);
-            }
+            commandBuffer.SetRenderTarget(gBuffer.colorBuffer, depthBuffer);
+            commandBuffer.ClearRenderTarget(false, true, Color.clear);
             render(gBuffer, RenderPhase.GBuffer);
 
             commandBuffer.SetRenderTarget(lineBuffer);
@@ -141,29 +134,41 @@ namespace WCGL
             commandBuffer.Blit(lineBuffer, BuiltinRenderTextureType.CameraTarget, DrawMaterial);
         }
 
+        private void addShadowCaster(Renderer r, Material mat, int meshIdx)
+        {
+            int passCount = mat.passCount;
+
+            for (int i = 0; i < passCount; i++)
+            {
+                if (mat.GetPassName(i) == "ShadowCaster")
+                {
+                    commandBuffer.DrawRenderer(r, mat, meshIdx, i);
+                    return;
+                }
+            }
+        }
+
         private void renderGBufferZero()
         {
             commandBuffer.SetRenderTarget(gBuffer, gBufferDepth);
             commandBuffer.ClearRenderTarget(true, true, Color.clear);
-            commandBuffer.SetGlobalFloat("modelID", 0);
-            commandBuffer.SetGlobalFloat("meshID", 0);
-            commandBuffer.SetGlobalInt("_Cull", (int)CullMode.Off);
-
-            var instanceRenderers = new HashSet<Renderer>();
-            foreach (var model in DeferredInkingModel.Instances)
-            {
-                foreach (var m in model.meshes)
-                {
-                    instanceRenderers.Add(m.mesh);
-                }
-            }
+            commandBuffer.SetGlobalVector("unity_LightShadowBias", Vector4.zero);
 
             var renderers = FindObjectsOfType<Renderer>();
             foreach (var r in renderers)
             {
-                if (r.isVisible && instanceRenderers.Contains(r) == false)
+                if (r.isVisible == false) continue;
+                var sr = r as SkinnedMeshRenderer;
+
+                var mesh = sr == null ? r.GetComponent<MeshFilter>().sharedMesh : sr.sharedMesh;
+                int subMeshCount = mesh.subMeshCount;
+                var materials = r.sharedMaterials;
+
+                for(int i=0; i<subMeshCount; i++)
                 {
-                    commandBuffer.DrawRenderer(r, GBufferMaterial);
+                    int matIdx = Math.Min(i, materials.Length - 1);
+                    var mat = materials[matIdx];
+                    addShadowCaster(r, mat, i);
                 }
             }
         }
