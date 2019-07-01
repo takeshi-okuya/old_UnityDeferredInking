@@ -18,8 +18,6 @@
 
         Pass
         {
-            ZTest Always
-
             CGPROGRAM
             #pragma vertex vert
             #pragma geometry geom
