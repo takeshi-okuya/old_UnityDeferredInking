@@ -19,7 +19,7 @@ namespace WCGL
         public float sigma = 1.0f;
         Vector4[] filter = new Vector4[3];
 
-        public enum ResolutionMode { Same, X2, X3, Custom}
+        public enum ResolutionMode { Same, X2, X3, Custom }
         public ResolutionMode gBufferResolutionMode = ResolutionMode.Same;
         public Vector2Int customGBufferResolution = new Vector2Int(1920, 1080);
 
@@ -105,7 +105,7 @@ namespace WCGL
                 }
             }
 
-            for(int i=0; i<3; i++)
+            for (int i = 0; i < 3; i++)
             {
                 filter[i] /= sum;
             }
@@ -164,7 +164,7 @@ namespace WCGL
                 int subMeshCount = mesh.subMeshCount;
                 var materials = r.sharedMaterials;
 
-                for(int i=0; i<subMeshCount; i++)
+                for (int i = 0; i < subMeshCount; i++)
                 {
                     int matIdx = Math.Min(i, materials.Length - 1);
                     var mat = materials[matIdx];
@@ -180,13 +180,6 @@ namespace WCGL
             foreach (var model in DeferredInkingModel.Instances)
             {
                 if (model.isActiveAndEnabled == false) continue;
-
-                if (phase == RenderPhase.Line)
-                {
-                    mat = model.material;
-                    if (mat == null) continue;
-                }
-
                 commandBuffer.SetGlobalFloat("modelID", model.modelID);
 
                 foreach (var mesh in model.meshes)
@@ -194,8 +187,16 @@ namespace WCGL
                     var renderer = mesh.mesh;
                     if (renderer == null || renderer.enabled == false) continue;
 
+                    if (phase == RenderPhase.GBuffer)
+                    {
+                        commandBuffer.SetGlobalInt("_Cull", (int)mesh.gBufferCulling);
+                    }
+                    else //RenderPhase.Line
+                    {
+                        mat = mesh.material;
+                        if (mat == null) continue;
+                    }
                     commandBuffer.SetGlobalFloat("meshID", mesh.meshID);
-                    if (phase == RenderPhase.GBuffer) commandBuffer.SetGlobalInt("_Cull", (int)mesh.gBufferCulling);
                     commandBuffer.DrawRenderer(renderer, mat);
                 }
             }
