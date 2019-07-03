@@ -10,6 +10,9 @@
         [Space]
         [Toggle] _Use_Depth("Use Depth", Float) = 0
         _DepthThreshold("Threshold_Depth", FLOAT) = 2.0
+        [Space]
+        [Toggle] _Use_Normal("Use Normal", Float) = 0
+        _NormalThreshold("Threshold_Normal", Range(-1, 1)) = 0.5
     }
     SubShader
     {
@@ -28,6 +31,7 @@
             #pragma multi_compile _CULL_OFF _CULL_FRONT _CULL_BACK
             #pragma multi_compile _ _USE_OBJECT_ID_ON
             #pragma multi_compile _ _USE_DEPTH_ON
+            #pragma multi_compile _ _USE_NORMAL_ON
 
             struct appdata
             {
@@ -49,11 +53,15 @@
             fixed4 _Color;
             float _OutlineWidth;
             float _DepthThreshold;
+            float _NormalThreshold;
 
             Texture2D _GBuffer;
             float4 _GBuffer_TexelSize;
             Texture2D _GBufferDepth;
             SamplerState my_point_clamp_sampler;
+
+            sampler2D _CameraDepthNormalsTexture;
+            float4 _CameraDepthNormalsTexture_TexelSize;
 
             float modelID;
             float meshID;
@@ -175,7 +183,7 @@
                 return dst;
             }
 
-            float detectDifferentID(bool3x3 isSameIDs, float3x3 depths, float centerDepth)
+            bool detectDifferentID(bool3x3 isSameIDs, float3x3 depths, float centerDepth)
             {
                 bool isDraw = false;
 
@@ -187,6 +195,40 @@
                         isDraw = isDraw || _isDraw;
                     }
                 }
+
+                return isDraw;
+            }
+
+            void sampleNormals(out float3 dst[9], float2 uv)
+            {
+                int idx = 0;
+                for (int y = -1; y <= 1; y++)
+                {
+                    for (int x = -1; x <= 1; x++)
+                    {
+                        float2 _uv = uv + float2(x, y) * _CameraDepthNormalsTexture_TexelSize;
+                        float4 depthNormal = tex2D(_CameraDepthNormalsTexture, _uv);
+                        float depth;
+                        float3 normal;
+                        DecodeDepthNormal(depthNormal, depth, normal);
+                        dst[idx++] = normal;
+                    }
+                }
+            }
+
+            #define COMPARE_NORMAL(idx)\
+                 isDraw = isDraw || (dot(normals[idx], normals[4]) < _NormalThreshold)
+            bool detectNormal(float3 normals[9])
+            {
+                bool isDraw = false;
+                COMPARE_NORMAL(0);
+                COMPARE_NORMAL(1);
+                COMPARE_NORMAL(2);
+                COMPARE_NORMAL(3);
+                COMPARE_NORMAL(5);
+                COMPARE_NORMAL(6);
+                COMPARE_NORMAL(7);
+                COMPARE_NORMAL(8);
 
                 return isDraw;
             }
@@ -210,6 +252,12 @@
 
                 #ifdef _USE_DEPTH_ON
                     isDraw = isDraw || depthSobel(depths);
+                #endif
+
+                #ifdef _USE_NORMAL_ON
+                    float3 normals[9];
+                    sampleNormals(normals, uv);
+                    isDraw = isDraw || detectNormal(normals);
                 #endif
 
                 clip(isDraw - 0.1f);
