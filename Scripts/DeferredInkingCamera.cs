@@ -182,19 +182,20 @@ namespace WCGL
                 if (model.isActiveAndEnabled == false) continue;
                 var id = new Vector2(model.modelID, 0);
 
-                foreach (var mesh in model.meshes)
+                foreach (var lineMat in model.lineMaterials)
                 {
-                    var renderer = mesh.mesh;
-                    if (renderer == null || renderer.enabled == false) continue;
+                    if (lineMat.enable == false || lineMat.material == null) continue;
+                    if (phase == RenderPhase.Line) mat = lineMat.material;
 
-                    if (phase == RenderPhase.Line)
+                    foreach (var mesh in lineMat.meshes)
                     {
-                        mat = mesh.material;
-                        if (mat == null) continue;
+                        var renderer = mesh.mesh;
+                        if (renderer == null || renderer.enabled == false) continue;
+
+                        id.y = lineMat.materialID * 32 + mesh.meshID + 1;
+                        commandBuffer.SetGlobalVector("_ID", id);
+                        commandBuffer.DrawRenderer(renderer, mat);
                     }
-                    id.y = mesh.meshID;
-                    commandBuffer.SetGlobalVector("_ID", id);
-                    commandBuffer.DrawRenderer(renderer, mat);
                 }
             }
         }
