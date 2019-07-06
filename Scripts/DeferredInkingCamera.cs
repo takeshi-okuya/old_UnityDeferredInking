@@ -75,7 +75,6 @@ namespace WCGL
                 Debug.LogError(name + " does not have camera.");
                 return;
             }
-            cam.depthTextureMode = DepthTextureMode.DepthNormals;
 
             commandBuffer = new CommandBuffer();
             commandBuffer.name = "DeferredInking";

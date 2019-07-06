@@ -71,10 +71,6 @@
             Texture2D _GBufferDepth;
             SamplerState my_point_clamp_sampler;
 
-            sampler2D _CameraDepthTexture;
-            sampler2D _CameraDepthNormalsTexture;
-            float4 _CameraDepthNormalsTexture_TexelSize;
-
             float modelID;
             float meshID;
 
@@ -91,43 +87,25 @@
                 return o;
             }
 
-            bool isFrontFace(triangle v2g input[3])
+            bool culling(v2g input[3])
             {
                 float3 v01 = float3(input[1].projXY - input[0].projXY, 0);
                 float3 v02 = float3(input[2].projXY - input[0].projXY, 0);
                 float c = cross(v01, v02).z;
 
+                bool isFrontFace;
                 #ifdef UNITY_REVERSED_Z
-                    return c >= 0;
+                    isFrontFace = c >= 0;
                 #else
-                    return c <= 0;
+                    isFrontFace = c <= 0;
                 #endif
-            }
 
-            bool culling(bool frontFace)
-            {
                 #ifdef _CULL_FRONT
-                    return frontFace;
+                    return isFrontFace;
                 #elif _CULL_BACK
-                    return !frontFace;
+                    return !isFrontFace;
                 #endif
             }
-
-            #ifdef _USE_NORMAL_ON
-            void reverseNormals(inout v2g input[3], bool frontFace)
-            {
-                #ifdef _CULL_OFF
-                    float direction = (float)frontFace * 2.0f - 1.0f;
-                    input[0].normal *= direction;
-                    input[1].normal *= direction;
-                    input[2].normal *= direction;
-                #elif _CULL_FRONT
-                    input[0].normal = -input[0].normal;
-                    input[1].normal = -input[1].normal;
-                    input[2].normal = -input[2].normal;
-                #endif
-            }
-            #endif
 
             void appendPoint(v2g p, float2 translate, inout g2f o, inout TriangleStream<g2f> ts)
             {
@@ -163,16 +141,8 @@
             [maxvertexcount(12)]
             void geom(triangle v2g input[3], uint pid : SV_PrimitiveID, inout TriangleStream<g2f> ts)
             {
-                #if !defined(_CULL_OFF) || defined(_USE_NORMAL_ON)
-                    bool frontFace = isFrontFace(input);
-                #endif
-
                 #if !defined(_CULL_OFF)
-                    if (culling(frontFace) == true) return;
-                #endif
-
-                #if defined(_USE_NORMAL_ON)
-                    reverseNormals(input, frontFace);
+                    if (culling(input) == true) return;
                 #endif
 
                 float aspect = (-UNITY_MATRIX_P[1][1]) / UNITY_MATRIX_P[0][0];
@@ -193,9 +163,12 @@
                 return sqrt(lx * lx + ly * ly) >= _DepthThreshold;
             }
 
-            bool3x3 compareSameIDs(float2 uv)
+        #ifdef _USE_NORMAL_ON
+            void sampleGBuffers(float2 uv, out bool3x3 isSameIDs, out float2 normals[3][3])
+        #else
+            void sampleGBuffers(float2 uv, out bool3x3 isSameIDs)
+        #endif
             {
-                bool3x3 dst;
                 float2 selfID = float2(modelID, meshID);
 
                 for (int y = -1; y <= 1; y++)
@@ -204,12 +177,15 @@
                     {
                         float2 _uv = uv + float2(x, y) * _GBuffer_TexelSize;
                         float4 g = _GBuffer.Sample(my_point_clamp_sampler, _uv);
-                        float2 sub = abs(g.xy * 255.0f - selfID);
-                        dst[y + 1][x + 1] = sub.x + sub.y < 0.1f;
+
+                        #ifdef _USE_NORMAL_ON
+                            normals[y + 1][x + 1] = g.xy;
+                        #endif
+
+                        float2 sub = abs(g.zw * 255.0f - selfID);
+                        isSameIDs[y + 1][x + 1] = sub.x + sub.y < 0.1f;
                     }
                 }
-
-                return dst;
             }
 
             float3x3 sampleDepths(float2 uv)
@@ -244,36 +220,20 @@
                 return isDraw;
             }
 
-            void sampleNormals(out float4 dst[3][3], float2 uv)
-            {
-                for (int y = -1; y <= 1; y++)
-                {
-                    for (int x = -1; x <= 1; x++)
-                    {
-                        float2 _uv = uv + float2(x, y) * _CameraDepthNormalsTexture_TexelSize;
-                        float4 depthNormal = tex2D(_CameraDepthNormalsTexture, _uv);
-                        float depth;
-                        float3 normal;
-                        DecodeDepthNormal(depthNormal, depth, normal);
-                        dst[y + 1][x + 1] = float4(normal, depth);
-                    }
-                }
-            }
-
-            bool detectNormal(float3 centerNormal, float4 depthNormals[3][3], float centerDepth)
+            bool detectNormal(float3 centerNormal, float centerDepth, float2 normals[3][3], float3x3 depths)
             {
                 bool isDraw = false;
                 float d = centerDepth - _DepthRange;
-                d = d * _ProjectionParams.w;
 
                 for (int y = 0; y < 3; y++)
                 {
                     for (int x = 0; x < 3; x++)
                     {
+                        float3 n = DecodeViewNormalStereo(float4(normals[y][x], 0, 0));
                         isDraw = isDraw ||
                             (
-                                (dot(centerNormal, depthNormals[y][x].xyz) < _NormalThreshold) && 
-                                (d < depthNormals[y][x].w)
+                                (dot(centerNormal, n) < _NormalThreshold) &&
+                                (d < depths[y][x])
                             );
                     }
                 }
@@ -288,7 +248,14 @@
                     uv.y = 1 - uv.y;
                 #endif
 
-                bool3x3 isSameIDs = compareSameIDs(uv);
+                bool3x3 isSameIDs;
+                #ifdef _USE_NORMAL_ON
+                    float2 normals[3][3];
+                    sampleGBuffers(uv, isSameIDs, normals);
+                #else
+                    sampleGBuffers(uv, isSameIDs);
+                #endif
+
                 clip(any(isSameIDs) - 0.1f);
 
                 bool isDraw = false;
@@ -303,9 +270,7 @@
                 #endif
 
                 #ifdef _USE_NORMAL_ON
-                    float4 normals[3][3];
-                    sampleNormals(normals, uv);
-                    isDraw = isDraw || detectNormal(i.normal, normals, i.center.w);
+                    isDraw = isDraw || detectNormal(i.normal, i.center.w, normals, depths);
                 #endif
 
                 clip(isDraw - 0.1f);
