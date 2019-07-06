@@ -87,7 +87,7 @@ namespace WCGL
                 var shader = Shader.Find("Hidden/DeferredInking/Draw");
                 DrawMaterial = new Material(shader);
 
-                shader = Shader.Find("Hidden/DeferredInking/gBuffer");
+                shader = Shader.Find("Hidden/DeferredInking/GBuffer");
                 GBufferMaterial = new Material(shader);
             }
         }

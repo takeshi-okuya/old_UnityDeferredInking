@@ -1,4 +1,4 @@
-﻿Shader "Hidden/DeferredInking/gBuffer"
+﻿Shader "Hidden/DeferredInking/GBuffer"
 {
     Properties
     {
