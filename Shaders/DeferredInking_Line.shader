@@ -174,8 +174,10 @@
             void sampleGBuffers(float2 uv, out bool3x3 isSameIDs)
         #endif
             {
+                [unroll]
                 for (int y = -1; y <= 1; y++)
                 {
+                    [unroll]
                     for (int x = -1; x <= 1; x++)
                     {
                         float2 _uv = uv + float2(x, y) * _GBuffer_TexelSize;
@@ -193,8 +195,10 @@
             {
                 float3x3 dst;
 
+                [unroll]
                 for (int y = -1; y <= 1; y++)
                 {
+                    [unroll]
                     for (int x = -1; x <= 1; x++)
                     {
                         float2 _uv = uv + float2(x, y) * _GBuffer_TexelSize;
