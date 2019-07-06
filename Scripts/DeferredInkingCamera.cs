@@ -180,7 +180,7 @@ namespace WCGL
             foreach (var model in DeferredInkingModel.Instances)
             {
                 if (model.isActiveAndEnabled == false) continue;
-                commandBuffer.SetGlobalFloat("modelID", model.modelID);
+                var id = new Vector2(model.modelID, 0);
 
                 foreach (var mesh in model.meshes)
                 {
@@ -196,7 +196,8 @@ namespace WCGL
                         mat = mesh.material;
                         if (mat == null) continue;
                     }
-                    commandBuffer.SetGlobalFloat("meshID", mesh.meshID);
+                    id.y = mesh.meshID;
+                    commandBuffer.SetGlobalVector("_ID", id);
                     commandBuffer.DrawRenderer(renderer, mat);
                 }
             }

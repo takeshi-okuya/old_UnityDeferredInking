@@ -44,7 +44,7 @@
 
             struct v2g
             {
-                float4 vertex : SV_POSITION;
+                float4 vertex : POSITION0;
                 float2 projXY : POSITION1;
                 #ifdef _USE_NORMAL_ON
                 float3 normal : TEXCOORD0;
@@ -71,8 +71,7 @@
             Texture2D _GBufferDepth;
             SamplerState my_point_clamp_sampler;
 
-            float modelID;
-            float meshID;
+            float2 _ID; // (ModelID, MeshID)
 
             v2g vert (appdata v)
             {
@@ -163,27 +162,29 @@
                 return sqrt(lx * lx + ly * ly) >= _DepthThreshold;
             }
 
+            bool isSameID(float2 id)
+            {
+                float2 sub = abs(id * 255.0f - _ID);
+                return sub.x + sub.y < 0.1f;
+            }
+
         #ifdef _USE_NORMAL_ON
             void sampleGBuffers(float2 uv, out bool3x3 isSameIDs, out float2 normals[3][3])
         #else
             void sampleGBuffers(float2 uv, out bool3x3 isSameIDs)
         #endif
             {
-                float2 selfID = float2(modelID, meshID);
-
                 for (int y = -1; y <= 1; y++)
                 {
                     for (int x = -1; x <= 1; x++)
                     {
                         float2 _uv = uv + float2(x, y) * _GBuffer_TexelSize;
                         float4 g = _GBuffer.Sample(my_point_clamp_sampler, _uv);
+                        isSameIDs[y + 1][x + 1] = isSameID(g.zw);
 
                         #ifdef _USE_NORMAL_ON
                             normals[y + 1][x + 1] = g.xy;
                         #endif
-
-                        float2 sub = abs(g.zw * 255.0f - selfID);
-                        isSameIDs[y + 1][x + 1] = sub.x + sub.y < 0.1f;
                     }
                 }
             }
@@ -241,6 +242,16 @@
                 return isDraw;
             }
 
+            void clipDepthID(float4 vpos)
+            {
+                float2 uv = (vpos.xy + 0.5) / _ScreenParams.xy;
+                float2 id = _GBuffer.Sample(my_point_clamp_sampler, uv).zw;
+                float depth = DECODE_EYEDEPTH(_GBufferDepth.Sample(my_point_clamp_sampler, uv)).x;
+                bool isDraw = isSameID(id) || vpos.w < depth;
+
+                clip(isDraw - 0.1f);
+            }
+
             fixed4 frag (g2f i) : SV_Target
             {
                 float2 uv = (i.center.xy / i.center.w + 1.0f) * 0.5f;
@@ -257,6 +268,7 @@
                 #endif
 
                 clip(any(isSameIDs) - 0.1f);
+                clipDepthID(i.vertex);
 
                 bool isDraw = false;
                 float3x3 depths = sampleDepths(uv);

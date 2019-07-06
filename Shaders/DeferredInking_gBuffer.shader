@@ -30,8 +30,7 @@
                 float3 normal : TEXCOORD0;
             };
 
-            float modelID;
-            float meshID;
+            float2 _ID; // (ModelID, MeshID)
 
             v2f vert (appdata v)
             {
@@ -45,7 +44,7 @@
             {
                 fixed4 col;
                 col.xy = EncodeViewNormalStereo(i.normal);
-                col.zw = fixed2(modelID, meshID) / 255.0f;
+                col.zw = _ID / 255.0f;
 
                 return col;
             }
