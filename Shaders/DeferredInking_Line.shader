@@ -13,6 +13,7 @@
         [Space]
         [Toggle] _Use_Normal("Use Normal", Float) = 0
         _NormalThreshold("Threshold_Normal", Range(-1, 1)) = 0.5
+        _DepthRange("Depth_Range", FLOAT) = 0.2
     }
     SubShader
     {
@@ -36,30 +37,41 @@
             struct appdata
             {
                 float4 vertex : POSITION;
+                #ifdef _USE_NORMAL_ON
+                float3 normal : NORMAL;
+                #endif
             };
 
             struct v2g
             {
                 float4 vertex : SV_POSITION;
                 float2 projXY : POSITION1;
+                #ifdef _USE_NORMAL_ON
+                float3 normal : TEXCOORD0;
+                #endif
             };
 
             struct g2f
             {
                 float4 vertex : SV_POSITION;
                 float4 center : POSITION1;
+                #ifdef _USE_NORMAL_ON
+                float3 normal : TEXCOORD0;
+                #endif
             };
 
             fixed4 _Color;
             float _OutlineWidth;
             float _DepthThreshold;
             float _NormalThreshold;
+            float _DepthRange;
 
             Texture2D _GBuffer;
             float4 _GBuffer_TexelSize;
             Texture2D _GBufferDepth;
             SamplerState my_point_clamp_sampler;
 
+            sampler2D _CameraDepthTexture;
             sampler2D _CameraDepthNormalsTexture;
             float4 _CameraDepthNormalsTexture_TexelSize;
 
@@ -71,6 +83,10 @@
                 v2g o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.projXY = o.vertex.xy / o.vertex.w;
+
+                #ifdef _USE_NORMAL_ON
+                    o.normal = COMPUTE_VIEW_NORMAL;
+                #endif
 
                 return o;
             }
@@ -101,7 +117,11 @@
                 float2 xy = (p.projXY + translate) * p.vertex.w;
                 o.vertex = float4(xy, p.vertex.zw);
                 o.center = p.vertex;
-                
+
+                #ifdef _USE_NORMAL_ON
+                    o.normal = p.normal;
+                #endif
+
                 ts.Append(o);
             }
 
@@ -199,9 +219,8 @@
                 return isDraw;
             }
 
-            void sampleNormals(out float3 dst[9], float2 uv)
+            void sampleNormals(out float4 dst[3][3], float2 uv)
             {
-                int idx = 0;
                 for (int y = -1; y <= 1; y++)
                 {
                     for (int x = -1; x <= 1; x++)
@@ -211,24 +230,28 @@
                         float depth;
                         float3 normal;
                         DecodeDepthNormal(depthNormal, depth, normal);
-                        dst[idx++] = normal;
+                        dst[y + 1][x + 1] = float4(normal, depth);
                     }
                 }
             }
 
-            #define COMPARE_NORMAL(idx)\
-                 isDraw = isDraw || (dot(normals[idx], normals[4]) < _NormalThreshold)
-            bool detectNormal(float3 normals[9])
+            bool detectNormal(float3 centerNormal, float4 depthNormals[3][3], float centerDepth)
             {
                 bool isDraw = false;
-                COMPARE_NORMAL(0);
-                COMPARE_NORMAL(1);
-                COMPARE_NORMAL(2);
-                COMPARE_NORMAL(3);
-                COMPARE_NORMAL(5);
-                COMPARE_NORMAL(6);
-                COMPARE_NORMAL(7);
-                COMPARE_NORMAL(8);
+                float d = centerDepth - _DepthRange;
+                d = d * _ProjectionParams.w;
+
+                for (int y = 0; y < 3; y++)
+                {
+                    for (int x = 0; x < 3; x++)
+                    {
+                        isDraw = isDraw ||
+                            (
+                                (dot(centerNormal, depthNormals[y][x].xyz) < _NormalThreshold) && 
+                                (d < depthNormals[y][x].w)
+                            );
+                    }
+                }
 
                 return isDraw;
             }
@@ -255,9 +278,9 @@
                 #endif
 
                 #ifdef _USE_NORMAL_ON
-                    float3 normals[9];
+                    float4 normals[3][3];
                     sampleNormals(normals, uv);
-                    isDraw = isDraw || detectNormal(normals);
+                    isDraw = isDraw || detectNormal(i.normal, normals, i.center.w);
                 #endif
 
                 clip(isDraw - 0.1f);
