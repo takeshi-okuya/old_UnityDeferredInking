@@ -13,7 +13,6 @@ namespace WCGL
         {
             public Renderer mesh;
             public Material material;
-            public CullMode gBufferCulling;
             [Range(0, 255)] public int meshID;
         }
         public static List<DeferredInkingModel> Instances = new List<DeferredInkingModel>();

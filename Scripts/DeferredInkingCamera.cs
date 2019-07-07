@@ -187,11 +187,7 @@ namespace WCGL
                     var renderer = mesh.mesh;
                     if (renderer == null || renderer.enabled == false) continue;
 
-                    if (phase == RenderPhase.GBuffer)
-                    {
-                        commandBuffer.SetGlobalInt("_Cull", (int)mesh.gBufferCulling);
-                    }
-                    else //RenderPhase.Line
+                    if (phase == RenderPhase.Line)
                     {
                         mat = mesh.material;
                         if (mat == null) continue;
