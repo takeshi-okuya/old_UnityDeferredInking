@@ -151,17 +151,6 @@
                 generateLine(input[2], input[0], aspect, ts);
             }
 
-            bool depthSobel(float3x3 depths)
-            {
-                float2 sumsX = float2(1, -1) * depths[0].xz + float2(2, -2) * depths[1].xz + float2(1, -1) * depths[2].xz;
-                float lx = sumsX.x + sumsX.y;
-
-                float3 sumsY = float3(1, 2, 1) * depths[0] + float3(-1, -2, -1) * depths[2];
-                float ly = sumsY.x + sumsY.y + sumsY.z;
-
-                return sqrt(lx * lx + ly * ly) >= _DepthThreshold;
-            }
-
             bool isSameID(float2 id)
             {
                 float2 sub = abs(id * 255.0f - _ID);
@@ -282,7 +271,7 @@
                 #endif
 
                 #ifdef _USE_DEPTH_ON
-                    isDraw = isDraw || depthSobel(depths);
+                    isDraw = isDraw || any(depths - i.center.w > _DepthThreshold);
                 #endif
 
                 #ifdef _USE_NORMAL_ON
