@@ -198,22 +198,6 @@
                 return dst;
             }
 
-            bool detectDifferentID(bool3x3 isSameIDs, float3x3 depths, float centerDepth)
-            {
-                bool isDraw = false;
-
-                for (int y = 0; y <= 2; y++)
-                {
-                    for (int x = 0; x <= 2; x++)
-                    {
-                        bool _isDraw = !isSameIDs[y][x] && (centerDepth < depths[y][x]);
-                        isDraw = isDraw || _isDraw;
-                    }
-                }
-
-                return isDraw;
-            }
-
             bool detectNormal(float3 centerNormal, float centerDepth, float2 normals[3][3], float3x3 depths)
             {
                 bool isDraw = false;
@@ -267,7 +251,7 @@
                 float3x3 depths = sampleDepths(uv);
 
                 #ifdef _USE_OBJECT_ID_ON
-                    isDraw = isDraw || detectDifferentID(isSameIDs, depths, i.center.w);
+                    isDraw = isDraw || any(!isSameIDs && (depths > i.center.w));
                 #endif
 
                 #ifdef _USE_DEPTH_ON
