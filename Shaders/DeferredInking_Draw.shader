@@ -8,7 +8,7 @@
     {
         // No culling or depth
         Cull Off ZWrite Off ZTest Always
-        Blend SrcAlpha OneMinusSrcAlpha
+        Blend SrcAlpha OneMinusSrcAlpha, Zero One
 
         Pass
         {
