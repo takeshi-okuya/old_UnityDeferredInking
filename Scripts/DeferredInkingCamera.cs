@@ -192,8 +192,12 @@ namespace WCGL
                         mat = mesh.material;
                         if (mat == null) continue;
                     }
-                    id.y = mesh.meshID;
-                    commandBuffer.SetGlobalVector("_ID", id);
+
+                    if (phase == RenderPhase.GBuffer || mat.GetTag("LineType", false) == "DeferredInking")
+                    {
+                        id.y = mesh.meshID;
+                        commandBuffer.SetGlobalVector("_ID", id);
+                    }
                     commandBuffer.DrawRenderer(renderer, mat);
                 }
             }

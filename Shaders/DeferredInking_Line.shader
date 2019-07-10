@@ -17,7 +17,7 @@
     }
     SubShader
     {
-        Tags { "RenderType"="Opaque" }
+        Tags { "RenderType"="Opaque" "LineType" = "DeferredInking" }
         LOD 100
 
         Pass
