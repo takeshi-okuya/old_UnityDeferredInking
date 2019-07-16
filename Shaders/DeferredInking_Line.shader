@@ -2,10 +2,17 @@
 {
     Properties
     {
-        _Color("Color", Color) = (0, 0, 0, 1)
-        _OutlineWidth("Outline Width (x0.1%)", FLOAT) = 2.0
         [KeywordEnum(Off, Front, Back)] _Cull("Culling", Float) = 2
-        [Space]
+        _Color("Color", Color) = (0, 0, 0, 1)
+
+        [Header(Outline Width)]
+        _OutlineWidth("Outline Width (x0.1%)", FLOAT) = 2.0
+        [Toggle] _Width_By_Distance("Width by Distance", Float) = 0
+        [Toggle] _Width_By_FoV("Width by FoV", Float) = 0
+        _MinWidth("Min Width", FLOAT) = 0.5
+        _MaxWidth("Max Width", FLOAT) = 4.0
+
+        [Header(Detection)]
         [Toggle] _Use_Object_ID("Use Object ID", Float) = 1
         [Space]
         [Toggle] _Use_Depth("Use Depth", Float) = 0
@@ -30,6 +37,8 @@
             #include "UnityCG.cginc"
 
             #pragma multi_compile _CULL_OFF _CULL_FRONT _CULL_BACK
+            #pragma multi_compile _ _WIDTH_BY_DISTANCE_ON
+            #pragma multi_compile _ _WIDTH_BY_FOV_ON
             #pragma multi_compile _ _USE_OBJECT_ID_ON
             #pragma multi_compile _ _USE_DEPTH_ON
             #pragma multi_compile _ _USE_NORMAL_ON
@@ -61,7 +70,11 @@
             };
 
             fixed4 _Color;
+
             float _OutlineWidth;
+            float _MinWidth;
+            float _MaxWidth;
+
             float _DepthThreshold;
             float _NormalThreshold;
             float _DepthRange;
@@ -119,21 +132,42 @@
                 ts.Append(o);
             }
 
+            float compWidth(float distance)
+            {
+                float width = _OutlineWidth;
+
+                #ifdef _WIDTH_BY_DISTANCE_ON
+                    width /= distance;
+                #endif
+
+                #ifdef _WIDTH_BY_FOV_ON
+                    width *= unity_CameraProjection[1][1] / (4.167);
+                #endif
+
+                #if defined(_WIDTH_BY_DISTANCE_ON) || defined(_WIDTH_BY_FOV_ON)
+                    width = clamp(width, _MinWidth, _MaxWidth);
+                #endif
+
+                return width * 0.001f;
+            }
+
             void generateLine(v2g p1, v2g p2, float aspect, inout TriangleStream<g2f> ts)
             {
                 float2 v12 = p2.projXY - p1.projXY;
                 v12.x *= aspect;
                 v12 = normalize(v12);
                 float2 right = float2(-v12.y, v12.x);
-                float2 translate = _OutlineWidth * 0.001f * right;
-                translate.x /= aspect;
+                right.x /= aspect;
+
+                float2 translate1 = compWidth(p1.vertex.w) * right;
+                float2 translate2 = compWidth(p2.vertex.w) * right;
 
                 g2f o;
 
-                appendPoint(p1, -translate, o, ts);
-                appendPoint(p2, -translate, o, ts);
-                appendPoint(p1, translate, o, ts);
-                appendPoint(p2, translate, o, ts);
+                appendPoint(p1, -translate1, o, ts);
+                appendPoint(p2, -translate2, o, ts);
+                appendPoint(p1, translate1, o, ts);
+                appendPoint(p2, translate2, o, ts);
                 ts.RestartStrip();
             }
 

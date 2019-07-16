@@ -3,7 +3,12 @@
     Properties
     {
         _Color("Color", Color) = (0, 0, 0, 1)
-        _OutlineWidth("Outline Width", FLOAT) = 0.003
+        [Header(Outline Width)]
+        _OutlineWidth("Outline Width", FLOAT) = 0.002
+        [Toggle] _Width_By_Distance("Width by Distance", Float) = 0
+        [Toggle] _Width_By_FoV("Width by FoV", Float) = 0
+        _MinWidth("Min Width", FLOAT) = 0.5
+        _MaxWidth("Max Width", FLOAT) = 4.0
     }
     SubShader
     {
@@ -19,6 +24,9 @@
 
             #include "UnityCG.cginc"
 
+            #pragma multi_compile _ _WIDTH_BY_DISTANCE_ON
+            #pragma multi_compile _ _WIDTH_BY_FOV_ON
+
             struct appdata
             {
                 float4 vertex : POSITION;
@@ -32,14 +40,38 @@
 
             fixed4 _Color;
             float _OutlineWidth;
+            float _MinWidth;
+            float _MaxWidth;
 
             Texture2D _CameraDepthTexture;
+
+            float compWidth(float distance)
+            {
+                float width = _OutlineWidth;
+
+                #ifndef _WIDTH_BY_DISTANCE_ON
+                    width *= -distance;
+                #endif
+
+                #ifdef _WIDTH_BY_FOV_ON
+                    width /= 4.167;
+                #else
+                    width /= unity_CameraProjection[1][1];
+                #endif
+
+                #if defined(_WIDTH_BY_DISTANCE_ON) || defined(_WIDTH_BY_FOV_ON)
+                    float scale = -distance / unity_CameraProjection[1][1];
+                    width = clamp(width, _MinWidth * scale, _MaxWidth * scale);
+                #endif
+
+                return width * 2.0 * 0.001f;
+            }
 
             v2f vert (appdata v)
             {
                 v2f o;
                 float3 viewPos = UnityObjectToViewPos(v.vertex);
-                float width = _OutlineWidth * (-viewPos.z) / unity_CameraProjection[1][1] * 2.0f * 0.001f;
+                float width = compWidth(viewPos.z);
                 float3 translate = v.normal * width;
                 o.vertex = UnityObjectToClipPos(v.vertex + translate);
                 return o;
