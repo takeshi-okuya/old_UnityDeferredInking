@@ -3,8 +3,8 @@
     Properties
     {
         _Color("Color", Color) = (0, 0, 0, 1)
-        _OutlineWidth("Outline Width", FLOAT) = 0.003
-        [KeywordEnum(Off, Front, Back)] _Cull("Culling", Float) = 0
+        _OutlineWidth("Outline Width (x0.1%)", FLOAT) = 2.0
+        [KeywordEnum(Off, Front, Back)] _Cull("Culling", Float) = 2
         [Space]
         [Toggle] _Use_Object_ID("Use Object ID", Float) = 1
         [Space]
@@ -125,7 +125,7 @@
                 v12.x *= aspect;
                 v12 = normalize(v12);
                 float2 right = float2(-v12.y, v12.x);
-                float2 translate = _OutlineWidth * right;
+                float2 translate = _OutlineWidth * 0.001f * right;
                 translate.x /= aspect;
 
                 g2f o;

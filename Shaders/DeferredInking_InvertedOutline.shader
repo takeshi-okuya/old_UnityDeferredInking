@@ -39,7 +39,8 @@
             {
                 v2f o;
                 float3 viewPos = UnityObjectToViewPos(v.vertex);
-                float3 translate = v.normal * _OutlineWidth * (-viewPos.z) / unity_CameraProjection[1][1] * 2;
+                float width = _OutlineWidth * (-viewPos.z) / unity_CameraProjection[1][1] * 2.0f * 0.001f;
+                float3 translate = v.normal * width;
                 o.vertex = UnityObjectToClipPos(v.vertex + translate);
                 return o;
             }
