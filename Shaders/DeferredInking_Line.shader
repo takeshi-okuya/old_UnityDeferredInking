@@ -42,6 +42,7 @@
             #pragma multi_compile _ _USE_OBJECT_ID_ON
             #pragma multi_compile _ _USE_DEPTH_ON
             #pragma multi_compile _ _USE_NORMAL_ON
+            #pragma multi_compile _ _ORTHO_ON
 
             struct appdata
             {
@@ -54,7 +55,11 @@
             struct v2g
             {
                 float4 vertex : POSITION0;
+
+                #if !defined(_ORTHO_ON)
                 float2 projXY : POSITION1;
+                #endif
+
                 #ifdef _USE_NORMAL_ON
                 float3 normal : TEXCOORD0;
                 #endif
@@ -63,7 +68,7 @@
             struct g2f
             {
                 float4 vertex : SV_POSITION;
-                float4 center : POSITION1;
+                float3 center : POSITION1;
                 #ifdef _USE_NORMAL_ON
                 float3 normal : TEXCOORD0;
                 #endif
@@ -90,7 +95,12 @@
             {
                 v2g o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
-                o.projXY = o.vertex.xy / o.vertex.w;
+
+                #ifdef _ORTHO_ON
+                    o.vertex.w = -UnityObjectToViewPos(v.vertex).z;
+                #else
+                    o.projXY = o.vertex.xy / o.vertex.w;
+                #endif
 
                 #ifdef _USE_NORMAL_ON
                     o.normal = COMPUTE_VIEW_NORMAL;
@@ -101,8 +111,13 @@
 
             bool culling(v2g input[3])
             {
-                float3 v01 = float3(input[1].projXY - input[0].projXY, 0);
-                float3 v02 = float3(input[2].projXY - input[0].projXY, 0);
+                #ifdef _ORTHO_ON
+                    float3 v01 = float3(input[1].vertex.xy - input[0].vertex.xy, 0);
+                    float3 v02 = float3(input[2].vertex.xy - input[0].vertex.xy, 0);
+                #else
+                    float3 v01 = float3(input[1].projXY - input[0].projXY, 0);
+                    float3 v02 = float3(input[2].projXY - input[0].projXY, 0);
+                #endif
                 float c = cross(v01, v02).z;
 
                 bool isFrontFace;
@@ -121,9 +136,15 @@
 
             void appendPoint(v2g p, float2 translate, inout g2f o, inout TriangleStream<g2f> ts)
             {
-                float2 xy = (p.projXY + translate) * p.vertex.w;
-                o.vertex = float4(xy, p.vertex.zw);
-                o.center = p.vertex;
+                #ifdef _ORTHO_ON
+                    float2 xy = p.vertex.xy + translate;
+                    o.vertex = float4(xy, p.vertex.z, 1);
+                    o.center = p.vertex.xyw;
+                #else
+                    float2 xy = (p.projXY + translate) * p.vertex.w;
+                    o.vertex = float4(xy, p.vertex.zw);
+                    o.center = float3(p.projXY, p.vertex.w);
+                #endif
 
                 #ifdef _USE_NORMAL_ON
                     o.normal = p.normal;
@@ -141,7 +162,7 @@
                 #endif
 
                 #ifdef _WIDTH_BY_FOV_ON
-                    width *= unity_CameraProjection[1][1] / (4.167);
+                    width *= unity_CameraProjection[1][1] / 4.167;
                 #endif
 
                 #if defined(_WIDTH_BY_DISTANCE_ON) || defined(_WIDTH_BY_FOV_ON)
@@ -153,7 +174,12 @@
 
             void generateLine(v2g p1, v2g p2, float aspect, inout TriangleStream<g2f> ts)
             {
-                float2 v12 = p2.projXY - p1.projXY;
+                #ifdef _ORTHO_ON
+                    float2 v12 = p2.vertex.xy - p1.vertex.xy;
+                #else
+                    float2 v12 = p2.projXY - p1.projXY;
+                #endif
+
                 v12.x *= aspect;
                 v12 = normalize(v12);
                 float2 right = float2(-v12.y, v12.x);
@@ -183,6 +209,20 @@
                 generateLine(input[0], input[1], aspect, ts);
                 generateLine(input[1], input[2], aspect, ts);
                 generateLine(input[2], input[0], aspect, ts);
+            }
+
+            float decodeGBufferDepth(float2 uv)
+            {
+                float gbDepth = _GBufferDepth.Sample(my_point_clamp_sampler, uv).x;
+
+                #ifdef _ORTHO_ON
+                    #if !defined(UNITY_REVERSED_Z)
+                        gbDepth =  2 * gbDepth - 1;
+                    #endif
+                    return -(gbDepth - UNITY_MATRIX_P[2][3]) / UNITY_MATRIX_P[2][2];
+                #else
+                    return DECODE_EYEDEPTH(gbDepth);
+                #endif
             }
 
             bool isSameID(float2 id)
@@ -225,7 +265,7 @@
                     for (int x = -1; x <= 1; x++)
                     {
                         float2 _uv = uv + float2(x, y) * _GBuffer_TexelSize;
-                        dst[y + 1][x + 1] = DECODE_EYEDEPTH(_GBufferDepth.Sample(my_point_clamp_sampler, _uv)).x;
+                        dst[y + 1][x + 1] = decodeGBufferDepth(_uv);
                     }
                 }
 
@@ -253,19 +293,19 @@
                 return isDraw;
             }
 
-            void clipDepthID(float4 vpos)
+            void clipDepthID(float2 vposXY, float centerZ)
             {
-                float2 uv = (vpos.xy + 0.5) / _ScreenParams.xy;
+                float2 uv = (vposXY + 0.5) / _ScreenParams.xy;
                 float2 id = _GBuffer.Sample(my_point_clamp_sampler, uv).zw;
-                float depth = DECODE_EYEDEPTH(_GBufferDepth.Sample(my_point_clamp_sampler, uv)).x;
-                bool isDraw = isSameID(id) || vpos.w < depth;
+                float depth = decodeGBufferDepth(uv);
+                bool isDraw = isSameID(id) || centerZ < depth;
 
                 clip(isDraw - 0.1f);
             }
 
             fixed4 frag (g2f i) : SV_Target
             {
-                float2 uv = (i.center.xy / i.center.w + 1.0f) * 0.5f;
+                float2 uv = (i.center.xy + 1.0f) * 0.5f;
                 #if UNITY_UV_STARTS_AT_TOP == 1
                     uv.y = 1 - uv.y;
                 #endif
@@ -279,21 +319,21 @@
                 #endif
 
                 clip(any(isSameIDs) - 0.1f);
-                clipDepthID(i.vertex);
+                clipDepthID(i.vertex.xy, i.center.z);
 
                 bool isDraw = false;
                 float3x3 depths = sampleDepths(uv);
 
                 #ifdef _USE_OBJECT_ID_ON
-                    isDraw = isDraw || any(!isSameIDs && (depths > i.center.w));
+                    isDraw = isDraw || any(!isSameIDs && (depths > i.center.z));
                 #endif
 
                 #ifdef _USE_DEPTH_ON
-                    isDraw = isDraw || any(depths - i.center.w > _DepthThreshold);
+                    isDraw = isDraw || any(depths - i.center.z > _DepthThreshold);
                 #endif
 
                 #ifdef _USE_NORMAL_ON
-                    isDraw = isDraw || detectNormal(i.normal, i.center.w, normals, depths);
+                    isDraw = isDraw || detectNormal(i.normal, i.center.z, normals, depths);
                 #endif
 
                 clip(isDraw - 0.1f);

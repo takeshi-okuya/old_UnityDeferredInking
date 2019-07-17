@@ -127,6 +127,8 @@ namespace WCGL
             commandBuffer.ClearRenderTarget(true, true, Color.clear);
             commandBuffer.SetGlobalTexture("_GBuffer", gBuffer.colorBuffer);
             commandBuffer.SetGlobalTexture("_GBufferDepth", depthBuffer);
+            if (cam.orthographic) { commandBuffer.EnableShaderKeyword("_ORTHO_ON"); }
+            else { commandBuffer.DisableShaderKeyword("_ORTHO_ON"); }
             render(lineBuffer, RenderPhase.Line);
 
             renewFilter();

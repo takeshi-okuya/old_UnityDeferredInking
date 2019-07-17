@@ -26,6 +26,7 @@
 
             #pragma multi_compile _ _WIDTH_BY_DISTANCE_ON
             #pragma multi_compile _ _WIDTH_BY_FOV_ON
+            #pragma multi_compile _ _ORTHO_ON
 
             struct appdata
             {
@@ -49,8 +50,10 @@
             {
                 float width = _OutlineWidth;
 
-                #ifndef _WIDTH_BY_DISTANCE_ON
-                    width *= -distance;
+                #if !defined(_ORTHO_ON) && !defined(_WIDTH_BY_DISTANCE_ON)
+                    width *= distance;
+                #elif defined(_ORTHO_ON) && defined(_WIDTH_BY_DISTANCE_ON)
+                    width /= distance;
                 #endif
 
                 #ifdef _WIDTH_BY_FOV_ON
@@ -60,7 +63,11 @@
                 #endif
 
                 #if defined(_WIDTH_BY_DISTANCE_ON) || defined(_WIDTH_BY_FOV_ON)
-                    float scale = -distance / unity_CameraProjection[1][1];
+                    #ifdef _ORTHO_ON
+                        float scale = 1.0f / unity_CameraProjection[1][1];
+                    #else
+                        float scale = distance / unity_CameraProjection[1][1];
+                    #endif
                     width = clamp(width, _MinWidth * scale, _MaxWidth * scale);
                 #endif
 
@@ -70,8 +77,8 @@
             v2f vert (appdata v)
             {
                 v2f o;
-                float3 viewPos = UnityObjectToViewPos(v.vertex);
-                float width = compWidth(viewPos.z);
+                float viewPosZ = -UnityObjectToViewPos(v.vertex).z;
+                float width = compWidth(viewPosZ);
                 float3 translate = v.normal * width;
                 o.vertex = UnityObjectToClipPos(v.vertex + translate);
                 return o;
