@@ -9,6 +9,9 @@
         [Toggle] _Width_By_FoV("Width by FoV", Float) = 0
         _MinWidth("Min Width", FLOAT) = 0.5
         _MaxWidth("Max Width", FLOAT) = 4.0
+
+		[Space]
+		[Toggle] _Use_Curvature("Use Curvature", Float) = 0
     }
     SubShader
     {
@@ -23,15 +26,18 @@
             #pragma fragment frag
 
             #include "UnityCG.cginc"
+			#include "Curvature.cginc"
 
             #pragma multi_compile _ _WIDTH_BY_DISTANCE_ON
             #pragma multi_compile _ _WIDTH_BY_FOV_ON
-            #pragma multi_compile _ _ORTHO_ON
+			#pragma multi_compile _ _USE_CURVATURE_ON
+			#pragma multi_compile _ _ORTHO_ON
 
             struct appdata
             {
                 float4 vertex : POSITION;
                 float3 normal : NORMAL;
+				uint id : SV_VertexID;
             };
 
             struct v2f
@@ -78,7 +84,7 @@
             {
                 v2f o;
                 float viewPosZ = -UnityObjectToViewPos(v.vertex).z;
-                float width = compWidth(viewPosZ);
+                float width = compWidth(viewPosZ) * compCurvatureWidth(v.id);
                 float3 translate = v.normal * width;
                 o.vertex = UnityObjectToClipPos(v.vertex + translate);
                 return o;

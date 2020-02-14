@@ -9,11 +9,19 @@ namespace WCGL
     public class DeferredInkingModel : MonoBehaviour
     {
         [System.Serializable]
-        public struct Mesh
+        public class Mesh
         {
             public Renderer mesh;
             public Material material;
             [Range(0, 255)] public int meshID;
+
+            public CurvatureShaderBuffer curvatureBuffer;
+
+            public void init()
+            {
+                var m = mesh.GetComponent<MeshFilter>().sharedMesh;
+                this.curvatureBuffer = new CurvatureShaderBuffer(m);
+            }
         }
         public static List<DeferredInkingModel> Instances = new List<DeferredInkingModel>();
 
@@ -24,6 +32,11 @@ namespace WCGL
 
         void Awake()
         {
+            for (int i = 0; i < meshes.Count; i++)
+            {
+                if (meshes[i].curvatureBuffer == null) meshes[i].init();
+            }
+
             Instances.Add(this);
         }
 

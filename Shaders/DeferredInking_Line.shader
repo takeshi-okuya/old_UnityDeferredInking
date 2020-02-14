@@ -21,6 +21,9 @@
         [Toggle] _Use_Normal("Use Normal", Float) = 0
         _NormalThreshold("Threshold_Normal", Range(-1, 1)) = 0.5
         _DepthRange("Depth_Range", FLOAT) = 0.2
+
+		[Space]
+		[Toggle] _Use_Curvature("Use Curvature", Float) = 0
     }
     SubShader
     {
@@ -35,6 +38,7 @@
             #pragma fragment frag
 
             #include "UnityCG.cginc"
+			#include "Curvature.cginc"
 
             #pragma multi_compile _CULL_OFF _CULL_FRONT _CULL_BACK
             #pragma multi_compile _ _WIDTH_BY_DISTANCE_ON
@@ -42,7 +46,8 @@
             #pragma multi_compile _ _USE_OBJECT_ID_ON
             #pragma multi_compile _ _USE_DEPTH_ON
             #pragma multi_compile _ _USE_NORMAL_ON
-            #pragma multi_compile _ _ORTHO_ON
+			#pragma multi_compile _ _USE_CURVATURE_ON
+			#pragma multi_compile _ _ORTHO_ON
 
             struct appdata
             {
@@ -50,6 +55,7 @@
                 #ifdef _USE_NORMAL_ON
                 float3 normal : NORMAL;
                 #endif
+				uint id : SV_VertexID;
             };
 
             struct v2g
@@ -63,6 +69,8 @@
                 #ifdef _USE_NORMAL_ON
                 float3 normal : TEXCOORD0;
                 #endif
+
+				float width : POSITION2;
             };
 
             struct g2f
@@ -106,6 +114,8 @@
                     o.normal = COMPUTE_VIEW_NORMAL;
                 #endif
 
+				o.width = compCurvatureWidth(v.id);
+
                 return o;
             }
 
@@ -146,6 +156,8 @@
                     o.center = float3(p.projXY, p.vertex.w);
                 #endif
 
+					o.vertex.z += o.vertex.w * 0.002;
+
                 #ifdef _USE_NORMAL_ON
                     o.normal = p.normal;
                 #endif
@@ -185,8 +197,8 @@
                 float2 right = float2(-v12.y, v12.x);
                 right.x /= aspect;
 
-                float2 translate1 = compWidth(p1.vertex.w) * right;
-                float2 translate2 = compWidth(p2.vertex.w) * right;
+                float2 translate1 = compWidth(p1.vertex.w) * right * p1.width;
+                float2 translate2 = compWidth(p2.vertex.w) * right * p2.width;
 
                 g2f o;
 
@@ -211,6 +223,7 @@
                 generateLine(input[2], input[0], aspect, ts);
             }
 
+
             float decodeGBufferDepth(float2 uv)
             {
                 float gbDepth = _GBufferDepth.Sample(my_point_clamp_sampler, uv).x;
@@ -225,83 +238,59 @@
                 #endif
             }
 
-            bool isSameID(float2 id)
-            {
-                float2 sub = abs(id * 255.0f - _ID);
-                return sub.x + sub.y < 0.1f;
-            }
+			bool compDepths(float x, float y, float centerDepth, float2 centerUV)
+			{
+				float2 _uv = centerUV + float2(x, y) * _GBuffer_TexelSize;
+				float depth = decodeGBufferDepth(_uv);
+				return abs(depth - centerDepth) > _DepthThreshold;
+			}
 
-        #ifdef _USE_NORMAL_ON
-            void sampleGBuffers(float2 uv, out bool3x3 isSameIDs, out float2 normals[3][3])
-        #else
-            void sampleGBuffers(float2 uv, out bool3x3 isSameIDs)
-        #endif
-            {
-                [unroll]
-                for (int y = -1; y <= 1; y++)
-                {
-                    [unroll]
-                    for (int x = -1; x <= 1; x++)
-                    {
-                        float2 _uv = uv + float2(x, y) * _GBuffer_TexelSize;
-                        float4 g = _GBuffer.Sample(my_point_clamp_sampler, _uv);
-                        isSameIDs[y + 1][x + 1] = isSameID(g.zw);
+			bool detectDepth(float2 uv)
+			{
+				bool isDraw = false;
+				float centerDepth = decodeGBufferDepth(uv);
 
-                        #ifdef _USE_NORMAL_ON
-                            normals[y + 1][x + 1] = g.xy;
-                        #endif
-                    }
-                }
-            }
+				isDraw = isDraw || compDepths(-1, -1, centerDepth, uv);
+				isDraw = isDraw || compDepths(-1, 0, centerDepth, uv);
+				isDraw = isDraw || compDepths(-1, 1, centerDepth, uv);
+				isDraw = isDraw || compDepths(0, -1, centerDepth, uv);
+				isDraw = isDraw || compDepths(0, 1, centerDepth, uv);
+				isDraw = isDraw || compDepths(1, -1, centerDepth, uv);
+				isDraw = isDraw || compDepths(1, 0, centerDepth, uv);
+				isDraw = isDraw || compDepths(1, 1, centerDepth, uv);
 
-            float3x3 sampleDepths(float2 uv)
-            {
-                float3x3 dst;
+				return isDraw;
+			}
 
-                [unroll]
-                for (int y = -1; y <= 1; y++)
-                {
-                    [unroll]
-                    for (int x = -1; x <= 1; x++)
-                    {
-                        float2 _uv = uv + float2(x, y) * _GBuffer_TexelSize;
-                        dst[y + 1][x + 1] = decodeGBufferDepth(_uv);
-                    }
-                }
+			float3 sampleNormal(float2 uv)
+			{
+				float4 g = _GBuffer.Sample(my_point_clamp_sampler, uv);
+				return DecodeViewNormalStereo(float4(g.xy, 0, 0));
+			}
 
-                return dst;
-            }
+			bool compNormals(float x, float y, float3 centerNormal, float2 centerUV)
+			{
+				float2 _uv = centerUV + float2(x, y) * _GBuffer_TexelSize;
+				float3 n = sampleNormal(_uv);
+				return dot(centerNormal, n) < _NormalThreshold;
+			}
 
-            bool detectNormal(float3 centerNormal, float centerDepth, float2 normals[3][3], float3x3 depths)
-            {
-                bool isDraw = false;
-                float d = centerDepth - _DepthRange;
+			bool detectNormal(float2 uv)
+			{
+				bool isDraw = false;
+				float3 centerNormal = sampleNormal(uv);
 
-                for (int y = 0; y < 3; y++)
-                {
-                    for (int x = 0; x < 3; x++)
-                    {
-                        float3 n = DecodeViewNormalStereo(float4(normals[y][x], 0, 0));
-                        isDraw = isDraw ||
-                            (
-                                (dot(centerNormal, n) < _NormalThreshold) &&
-                                (d < depths[y][x])
-                            );
-                    }
-                }
+				isDraw = isDraw || compNormals(-1, -1, centerNormal, uv);
+				isDraw = isDraw || compNormals(-1, 0, centerNormal, uv);
+				isDraw = isDraw || compNormals(-1, 1, centerNormal, uv);
+				isDraw = isDraw || compNormals(0, -1, centerNormal, uv);
+				isDraw = isDraw || compNormals(0, 1, centerNormal, uv);
+				isDraw = isDraw || compNormals(1, -1, centerNormal, uv);
+				isDraw = isDraw || compNormals(1, 0, centerNormal, uv);
+				isDraw = isDraw || compNormals(1, 1, centerNormal, uv);
 
-                return isDraw;
-            }
-
-            void clipDepthID(float2 vposXY, float centerZ)
-            {
-                float2 uv = (vposXY + 0.5) / _ScreenParams.xy;
-                float2 id = _GBuffer.Sample(my_point_clamp_sampler, uv).zw;
-                float depth = decodeGBufferDepth(uv);
-                bool isDraw = isSameID(id) || centerZ < depth;
-
-                clip(isDraw - 0.1f);
-            }
+				return isDraw;
+			}
 
             fixed4 frag (g2f i) : SV_Target
             {
@@ -310,30 +299,14 @@
                     uv.y = 1 - uv.y;
                 #endif
 
-                bool3x3 isSameIDs;
-                #ifdef _USE_NORMAL_ON
-                    float2 normals[3][3];
-                    sampleGBuffers(uv, isSameIDs, normals);
-                #else
-                    sampleGBuffers(uv, isSameIDs);
-                #endif
-
-                clip(any(isSameIDs) - 0.1f);
-                clipDepthID(i.vertex.xy, i.center.z);
-
                 bool isDraw = false;
-                float3x3 depths = sampleDepths(uv);
-
-                #ifdef _USE_OBJECT_ID_ON
-                    isDraw = isDraw || any(!isSameIDs && (depths > i.center.z));
-                #endif
 
                 #ifdef _USE_DEPTH_ON
-                    isDraw = isDraw || any(depths - i.center.z > _DepthThreshold);
-                #endif
+					isDraw = isDraw || detectDepth(uv);
+				#endif
 
                 #ifdef _USE_NORMAL_ON
-                    isDraw = isDraw || detectNormal(i.normal, i.center.z, normals, depths);
+                    isDraw = isDraw || detectNormal(uv);
                 #endif
 
                 clip(isDraw - 0.1f);

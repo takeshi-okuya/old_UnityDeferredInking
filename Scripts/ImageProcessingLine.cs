@@ -7,7 +7,7 @@ using UnityEngine.Rendering;
 namespace WCGL
 {
     [ExecuteInEditMode]
-    public class DeferredInkingCamera : MonoBehaviour
+    public class ImageProcessingLine : MonoBehaviour
     {
         static Material DrawMaterial, GBufferMaterial;
 
@@ -15,9 +15,9 @@ namespace WCGL
         CommandBuffer commandBuffer;
         RenderTexture gBuffer;
 
-        public bool generateGBuffer = true;
-
-        enum RenderPhase { GBuffer, Line }
+        [SerializeField, Range(-1, 1)]
+        float normalThreshold = 0;
+        public float depthThreshold = 0.1f;
 
         void Start() { } //for Inspector ON_OFF
 
@@ -52,7 +52,7 @@ namespace WCGL
 
             if (DrawMaterial == null)
             {
-                var shader = Shader.Find("Hidden/DeferredInking/Draw");
+                var shader = Shader.Find("Hidden/ImageProcessingLine");
                 DrawMaterial = new Material(shader);
 
                 shader = Shader.Find("Hidden/DeferredInking/GBuffer");
@@ -66,25 +66,20 @@ namespace WCGL
 
             var depthBuffer = (RenderTargetIdentifier)BuiltinRenderTextureType.Depth;
 
-            if (generateGBuffer == true)
-            {
-                commandBuffer.SetRenderTarget(gBuffer.colorBuffer, depthBuffer);
-                commandBuffer.ClearRenderTarget(false, true, Color.clear);
-                render(RenderPhase.GBuffer);
-            }
+            commandBuffer.SetRenderTarget(gBuffer.colorBuffer, depthBuffer);
+            commandBuffer.ClearRenderTarget(false, true, Color.clear);
+            render(gBuffer);
 
-            commandBuffer.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
+            if (cam.orthographic) { DrawMaterial.EnableKeyword("_ORTHO_ON"); }
+            else { DrawMaterial.DisableKeyword("_ORTHO_ON"); }
+            DrawMaterial.SetFloat("_NormalThreshold", normalThreshold);
+            DrawMaterial.SetFloat("_DepthThreshold", depthThreshold);
             commandBuffer.SetGlobalTexture("_GBuffer", gBuffer.colorBuffer);
-            commandBuffer.SetGlobalTexture("_GBufferDepth", depthBuffer);
-            if (cam.orthographic) { commandBuffer.EnableShaderKeyword("_ORTHO_ON"); }
-            else { commandBuffer.DisableShaderKeyword("_ORTHO_ON"); }
-            render(RenderPhase.Line);
+            commandBuffer.Blit(null, BuiltinRenderTextureType.CameraTarget, DrawMaterial);
         }
 
-        private void render(RenderPhase phase)
+        private void render(RenderTexture target)
         {
-            Material mat = GBufferMaterial;
-
             foreach (var model in DeferredInkingModel.Instances)
             {
                 if (model.isActiveAndEnabled == false) continue;
@@ -95,21 +90,9 @@ namespace WCGL
                     var renderer = mesh.mesh;
                     if (renderer == null || renderer.enabled == false) continue;
 
-                    if (phase == RenderPhase.Line)
-                    {
-                        mat = mesh.material;
-                        if (mat == null) continue;
-
-                        if (mesh.curvatureBuffer == null) Debug.Log("NULL: " + mesh.mesh.name);
-                        else mesh.curvatureBuffer.generateCommendBuffer(commandBuffer);
-                    }
-
-                    if (phase == RenderPhase.GBuffer || mat.GetTag("LineType", false) == "DeferredInking")
-                    {
-                        id.y = mesh.meshID;
-                        commandBuffer.SetGlobalVector("_ID", id);
-                    }
-                    commandBuffer.DrawRenderer(renderer, mat);
+                    id.y = mesh.meshID;
+                    commandBuffer.SetGlobalVector("_ID", id);
+                    commandBuffer.DrawRenderer(renderer, GBufferMaterial);
                 }
             }
         }
