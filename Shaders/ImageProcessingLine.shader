@@ -119,11 +119,26 @@
 
             fixed4 frag (v2f i) : SV_Target
             {
-				bool isDraw = detectDepth(i.uv);
-				isDraw = isDraw || detectNormal(i.uv);
-					
-				clip(isDraw - 0.1f);
+				bool disDraw = detectDepth(i.uv);
+				bool nisDraw = detectNormal(i.uv);
+
+				clip((disDraw || nisDraw) - 0.1);
 				return float4(0, 0, 0, 1);
+
+				//if (disDraw == true && nisDraw == true) return float4(0, 0, 1, 1);
+				//if (disDraw == true && nisDraw == false) return float4(1, 0, 0, 1);
+				//if (disDraw == false && nisDraw == true) return float4(0, 1, 0, 1);
+				//clip(-1);
+				//return float4(0, 0, 0, 0);
+
+				//if (nisDraw == true) return float4(0, 1, 0, 1);
+				//float3 n = sampleNormal(i.uv);
+				//return float4(n.xyz, 1);
+
+				//if (disDraw == true) return float4(1, 0, 0, 1);
+				//float c = decodeDepth(i.uv);
+				//c = c * 2 +  0.5;
+				//return float4(c, c, c, 1);
             }
             ENDCG
         }
