@@ -38,16 +38,13 @@ float compCurvature(float3 pos0, NeighborLoop neighborLoop)
 	return length(sum * 2 / A);
 }
 
-float compLineWidth(float curvature, float minCurvature, float maxCurvature,
-	float minWidth, float maxWidth)
+float compLineWidth(float curvature, float s, float t)
 {
-	float c = clamp(curvature, minCurvature, maxCurvature);
-	return (c - minCurvature) / (maxCurvature - minCurvature)
-		* (maxWidth - minWidth) + minWidth;
+	return clamp(curvature, 0, s) / s * t + 1;
 }
 
 float compCurvatureWidth(uint id)
 {
 	float curvature = compCurvature(Vertices[id], NeighborLoops[id]);
-	return compLineWidth(curvature, 0, 2.5, 0.2, 1.0);
+	return compLineWidth(curvature, _CurvatureThreshold, _CurvatureMaxWidth);
 }

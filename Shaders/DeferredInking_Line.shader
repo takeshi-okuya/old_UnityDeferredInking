@@ -24,6 +24,8 @@
 
 		[Space]
 		[Toggle] _Use_Curvature("Use Curvature", Float) = 0
+        _CurvatureThreshold("Curvature Threshold", Float) = 1
+        _CurvatureMaxWidth("Curvature Max Width", Range(0, 5)) = 1
     }
     SubShader
     {
