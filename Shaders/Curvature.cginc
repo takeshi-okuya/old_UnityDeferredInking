@@ -4,7 +4,8 @@ StructuredBuffer<NeighborLoop> NeighborLoops;
 StructuredBuffer<int3> NeighborIdxs;
 StructuredBuffer<float3> Vertices;
 
-bool EnableCurvature = false;
+float _CurvatureThreshold;
+float _CurvatureMaxWidth;
 
 float compCurvature(float3 pos0, NeighborLoop neighborLoop)
 {
@@ -45,19 +46,8 @@ float compLineWidth(float curvature, float minCurvature, float maxCurvature,
 		* (maxWidth - minWidth) + minWidth;
 }
 
-float compLineWidth(float curvature, float minCurvature, float maxCurvature,
-	float minWidth, float maxWidth, float defaultWidth)
-{
-	if (EnableCurvature == false) return defaultWidth;
-	else return compLineWidth(curvature, minCurvature, maxCurvature, minWidth, maxWidth);
-}
-
 float compCurvatureWidth(uint id)
 {
-#ifdef _USE_CURVATURE_ON
 	float curvature = compCurvature(Vertices[id], NeighborLoops[id]);
-	return compLineWidth(curvature, 0, 2.5, 0.5, 1.5);
-#else
-	return 1.0f;
-#endif
+	return compLineWidth(curvature, 0, 2.5, 0.2, 1.0);
 }

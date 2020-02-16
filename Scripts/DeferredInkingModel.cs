@@ -19,8 +19,9 @@ namespace WCGL
 
             public void init()
             {
-                var m = mesh.GetComponent<MeshFilter>().sharedMesh;
-                this.curvatureBuffer = new CurvatureShaderBuffer(m);
+                var smr = mesh as SkinnedMeshRenderer;
+                var m = smr == null ? mesh.GetComponent<MeshFilter>().sharedMesh : smr.sharedMesh;
+                curvatureBuffer = new CurvatureShaderBuffer(m);
             }
         }
         public static List<DeferredInkingModel> Instances = new List<DeferredInkingModel>();
@@ -42,8 +43,12 @@ namespace WCGL
 
         void OnDestroy()
         {
+            for (int i = 0; i < meshes.Count; i++)
+            {
+                if (meshes[i]?.curvatureBuffer != null) meshes[i].curvatureBuffer.ReleaseBuffer();
+            }
+
             Instances.Remove(this);
         }
-
     }
 }

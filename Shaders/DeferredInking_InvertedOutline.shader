@@ -84,7 +84,12 @@
             {
                 v2f o;
                 float viewPosZ = -UnityObjectToViewPos(v.vertex).z;
-                float width = compWidth(viewPosZ) * compCurvatureWidth(v.id);
+
+                float width = compWidth(viewPosZ);
+                #ifdef _USE_CURVATURE_ON	
+                    width *= compCurvatureWidth(v.id);
+                #endif
+
                 float3 translate = v.normal * width;
                 o.vertex = UnityObjectToClipPos(v.vertex + translate);
                 return o;

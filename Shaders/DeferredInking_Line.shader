@@ -70,7 +70,9 @@
                 float3 normal : TEXCOORD0;
                 #endif
 
+                #ifdef _USE_CURVATURE_ON
 				float width : POSITION2;
+                #endif
             };
 
             struct g2f
@@ -114,7 +116,9 @@
                     o.normal = COMPUTE_VIEW_NORMAL;
                 #endif
 
-				o.width = compCurvatureWidth(v.id);
+                #ifdef _USE_CURVATURE_ON
+                    o.width = compCurvatureWidth(v.id);
+                #endif
 
                 return o;
             }
@@ -165,11 +169,12 @@
                 ts.Append(o);
             }
 
-            float compWidth(float distance)
+            float compWidth(v2g p)
             {
                 float width = _OutlineWidth;
 
                 #ifdef _WIDTH_BY_DISTANCE_ON
+                    float distance = p.vertex.w;
                     width /= distance;
                 #endif
 
@@ -179,6 +184,10 @@
 
                 #if defined(_WIDTH_BY_DISTANCE_ON) || defined(_WIDTH_BY_FOV_ON)
                     width = clamp(width, _MinWidth, _MaxWidth);
+                #endif
+
+                #ifdef _USE_CURVATURE_ON
+                    width *= p.width;
                 #endif
 
                 return width * 0.001f;
@@ -197,8 +206,8 @@
                 float2 right = float2(-v12.y, v12.x);
                 right.x /= aspect;
 
-                float2 translate1 = compWidth(p1.vertex.w) * right * p1.width;
-                float2 translate2 = compWidth(p2.vertex.w) * right * p2.width;
+                float2 translate1 = compWidth(p1) * right;
+                float2 translate2 = compWidth(p2) * right;
 
                 g2f o;
 
