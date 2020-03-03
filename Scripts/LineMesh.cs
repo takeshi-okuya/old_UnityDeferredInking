@@ -17,7 +17,7 @@ namespace WCGL
             bakedMesh.vertices?.Release();
         }
 
-        public void bakeMesh(CommandBuffer commandBuffer)
+        void bakeMesh(CommandBuffer commandBuffer)
         {
             if (mesh == null) return;
 
@@ -55,6 +55,18 @@ namespace WCGL
                 var mat = rb.transform.worldToLocalMatrix * mesh.transform.localToWorldMatrix;
                 commandBuffer.SetGlobalMatrix("_RootBone", mat);
             }
+        }
+
+        public void renderLine(CommandBuffer commandBuffer, int modelID)
+        {
+            if (material.GetTag("LineType", false) == "DeferredInking")
+            {
+                bakeMesh(commandBuffer);
+                var id = new Vector2(modelID, meshID);
+                commandBuffer.SetGlobalVector("_ID", id);
+            }
+
+            commandBuffer.DrawRenderer(mesh, material);
         }
     }
 }

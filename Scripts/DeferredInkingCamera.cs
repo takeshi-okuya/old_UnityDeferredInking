@@ -193,31 +193,22 @@ namespace WCGL
 
         private void render(RenderPhase phase)
         {
-            Material mat = GBufferMaterial;
-
             foreach (var model in DeferredInkingModel.Instances)
             {
                 if (model.isActiveAndEnabled == false) continue;
-                var id = new Vector2(model.modelID, 0);
 
                 foreach (var mesh in model.meshes)
                 {
                     var renderer = mesh.mesh;
-                    if (renderer == null || renderer.enabled == false) continue;
+                    if (renderer == null || renderer.enabled == false || mesh.material == null) continue;
 
-                    if (phase == RenderPhase.Line)
+                    if (phase == RenderPhase.GBuffer)
                     {
-                        mat = mesh.material;
-                        if (mat == null) continue;
-                        mesh.bakeMesh(commandBuffer);
-                    }
-
-                    if (phase == RenderPhase.GBuffer || mat.GetTag("LineType", false) == "DeferredInking")
-                    {
-                        id.y = mesh.meshID;
+                        var id = new Vector2(model.modelID, mesh.meshID);
                         commandBuffer.SetGlobalVector("_ID", id);
+                        commandBuffer.DrawRenderer(renderer, GBufferMaterial);
                     }
-                    commandBuffer.DrawRenderer(renderer, mat);
+                    else mesh.renderLine(commandBuffer, model.modelID);
                 }
             }
         }
