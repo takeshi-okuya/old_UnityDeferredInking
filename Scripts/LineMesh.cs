@@ -49,12 +49,8 @@ namespace WCGL
             commandBuffer.SetGlobalBuffer("_Vertices", bakedMesh.vertices);
 
             var rb = smr?.rootBone;
-            if (rb == null) commandBuffer.SetGlobalMatrix("_RootBone", Matrix4x4.identity);
-            else
-            {
-                var mat = rb.transform.worldToLocalMatrix * mesh.transform.localToWorldMatrix;
-                commandBuffer.SetGlobalMatrix("_RootBone", mat);
-            }
+            var rootBoneMatrix = (rb == null) ? Matrix4x4.identity : rb.transform.worldToLocalMatrix * mesh.transform.localToWorldMatrix;
+            commandBuffer.SetGlobalMatrix("_RootBone", rootBoneMatrix);
         }
 
         public void renderLine(CommandBuffer commandBuffer, int modelID)
