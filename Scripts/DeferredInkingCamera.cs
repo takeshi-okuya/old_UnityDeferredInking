@@ -92,6 +92,32 @@ namespace WCGL
             }
         }
 
+        RenderTargetIdentifier renderGBuffer()
+        {
+            var depthBuffer = (gBufferResolutionMode == ResolutionMode.Same) ?
+                (RenderTargetIdentifier)BuiltinRenderTextureType.Depth : gBufferDepth;
+            if (depthBuffer == gBufferDepth) renderGBufferZero();
+
+            commandBuffer.SetRenderTarget(gBuffer.colorBuffer, depthBuffer);
+            commandBuffer.ClearRenderTarget(false, true, Color.clear);
+            render(RenderPhase.GBuffer);
+
+            return depthBuffer;
+        }
+
+        void renderLine(RenderTargetIdentifier depthBuffer)
+        {
+            commandBuffer.SetRenderTarget(lineBuffer);
+            commandBuffer.ClearRenderTarget(true, true, Color.clear);
+            commandBuffer.SetGlobalTexture("_GBuffer", gBuffer.colorBuffer);
+            commandBuffer.SetGlobalTexture("_GBufferDepth", depthBuffer);
+
+            if (cam.orthographic) { commandBuffer.EnableShaderKeyword("_ORTHO_ON"); }
+            else { commandBuffer.DisableShaderKeyword("_ORTHO_ON"); }
+
+            render(RenderPhase.Line);
+        }
+
         void renewFilter()
         {
             float sum = 0;
@@ -111,29 +137,19 @@ namespace WCGL
             }
         }
 
-        private void OnPreRender()
+        void blitToFrameBuffer()
         {
-            resizeRenderTexture();
-
-            var depthBuffer = (gBufferResolutionMode == ResolutionMode.Same) ?
-                (RenderTargetIdentifier)BuiltinRenderTextureType.Depth : gBufferDepth;
-            if (depthBuffer == gBufferDepth) renderGBufferZero();
-
-            commandBuffer.SetRenderTarget(gBuffer.colorBuffer, depthBuffer);
-            commandBuffer.ClearRenderTarget(false, true, Color.clear);
-            render(gBuffer, RenderPhase.GBuffer);
-
-            commandBuffer.SetRenderTarget(lineBuffer);
-            commandBuffer.ClearRenderTarget(true, true, Color.clear);
-            commandBuffer.SetGlobalTexture("_GBuffer", gBuffer.colorBuffer);
-            commandBuffer.SetGlobalTexture("_GBufferDepth", depthBuffer);
-            if (cam.orthographic) { commandBuffer.EnableShaderKeyword("_ORTHO_ON"); }
-            else { commandBuffer.DisableShaderKeyword("_ORTHO_ON"); }
-            render(lineBuffer, RenderPhase.Line);
-
             renewFilter();
             commandBuffer.SetGlobalVectorArray("Filter", filter);
             commandBuffer.Blit(lineBuffer, BuiltinRenderTextureType.CameraTarget, DrawMaterial);
+        }
+
+        private void OnPreRender()
+        {
+            resizeRenderTexture();
+            var depthBuffer = renderGBuffer();
+            renderLine(depthBuffer);
+            blitToFrameBuffer();
         }
 
         private void addShadowCaster(Renderer r, Material mat, int meshIdx)
@@ -175,7 +191,7 @@ namespace WCGL
             }
         }
 
-        private void render(RenderTexture target, RenderPhase phase)
+        private void render(RenderPhase phase)
         {
             Material mat = GBufferMaterial;
 
