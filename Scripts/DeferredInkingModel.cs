@@ -18,9 +18,20 @@ namespace WCGL
             Instances.Add(this);
         }
 
+#if UNITY_EDITOR
+        void OnDisable()
+        {
+            if (UnityEditor.EditorApplication.isPlaying == false && UnityEditor.EditorApplication.isPlayingOrWillChangePlaymode == true)
+            {
+                foreach (var mesh in meshes) mesh?.release();
+            }
+        }
+#endif
+
         void OnDestroy()
         {
             Instances.Remove(this);
+            foreach (var mesh in meshes) mesh?.release();
         }
     }
 }

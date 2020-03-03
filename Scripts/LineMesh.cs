@@ -12,7 +12,7 @@ namespace WCGL
 
         private (Renderer original, Mesh mesh, ComputeBuffer vertices) bakedMesh;
 
-        ~LineMesh()
+        public void release()
         {
             bakedMesh.vertices?.Release();
         }
