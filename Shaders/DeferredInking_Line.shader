@@ -46,7 +46,7 @@
 
             struct appdata
             {
-                float4 vertex : POSITION;
+                uint id : SV_VertexID;
                 #ifdef _USE_NORMAL_ON
                 float3 normal : NORMAL;
                 #endif
@@ -84,6 +84,9 @@
             float _NormalThreshold;
             float _DepthRange;
 
+            StructuredBuffer<float3> _Vertices;
+            float4x4 _RootBone;
+
             Texture2D _GBuffer;
             float4 _GBuffer_TexelSize;
             Texture2D _GBufferDepth;
@@ -94,7 +97,8 @@
             v2g vert (appdata v)
             {
                 v2g o;
-                o.vertex = UnityObjectToClipPos(v.vertex);
+                float4 vertex = mul(_RootBone, float4(_Vertices[v.id], 1));
+                o.vertex = UnityObjectToClipPos(vertex);
 
                 #ifdef _ORTHO_ON
                     o.vertex.w = -UnityObjectToViewPos(v.vertex).z;

@@ -209,6 +209,7 @@ namespace WCGL
                     {
                         mat = mesh.material;
                         if (mat == null) continue;
+                        mesh.bakeMesh(commandBuffer);
                     }
 
                     if (phase == RenderPhase.GBuffer || mat.GetTag("LineType", false) == "DeferredInking")
