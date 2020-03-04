@@ -10,7 +10,7 @@ namespace WCGL
         public Material material;
         [Range(0, 255)] public int meshID;
 
-        private (Renderer original, Mesh mesh, ComputeBuffer vertices) bakedMesh;
+        private (Renderer original, Mesh verticesMesh, ComputeBuffer vertices) bakedMesh;
 
         public void release()
         {
@@ -24,15 +24,15 @@ namespace WCGL
             var smr = mesh as SkinnedMeshRenderer;
             if (smr != null)
             {
-                if (bakedMesh.mesh == null) bakedMesh.mesh = new Mesh();
-                smr.BakeMesh(bakedMesh.mesh);
+                if (bakedMesh.verticesMesh == null) bakedMesh.verticesMesh = new Mesh();
+                smr.BakeMesh(bakedMesh.verticesMesh);
             }
             else if (bakedMesh.original != mesh)
             {
-                bakedMesh.mesh = mesh.GetComponent<MeshFilter>().sharedMesh;
+                bakedMesh.verticesMesh = mesh.GetComponent<MeshFilter>().sharedMesh;
             }
 
-            int len = bakedMesh.mesh.vertices.Length;
+            int len = bakedMesh.verticesMesh.vertices.Length;
             if (bakedMesh.vertices == null || bakedMesh.vertices.count != len)
             {
                 bakedMesh.vertices?.Release();
@@ -42,7 +42,7 @@ namespace WCGL
 
             if (smr != null || bakedMesh.original != mesh)
             {
-                bakedMesh.vertices.SetData(bakedMesh.mesh.vertices);
+                bakedMesh.vertices.SetData(bakedMesh.verticesMesh.vertices);
                 bakedMesh.original = mesh;
             }
 
