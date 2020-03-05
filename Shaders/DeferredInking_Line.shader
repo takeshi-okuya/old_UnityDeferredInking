@@ -44,14 +44,6 @@
             #pragma multi_compile _ _USE_NORMAL_ON
             #pragma multi_compile _ _ORTHO_ON
 
-            struct appdata
-            {
-                uint id : SV_VertexID;
-                #ifdef _USE_NORMAL_ON
-                float3 normal : NORMAL;
-                #endif
-            };
-
             struct v2g
             {
                 float4 vertex : POSITION0;
@@ -85,7 +77,7 @@
             float _DepthRange;
 
             StructuredBuffer<float3> _Vertices;
-            float4x4 _RootBone;
+            StructuredBuffer<float3> _Normals;
 
             Texture2D _GBuffer;
             float4 _GBuffer_TexelSize;
@@ -94,20 +86,21 @@
 
             float2 _ID; // (ModelID, MeshID)
 
-            v2g vert (appdata v)
+            v2g vert (uint id : SV_VertexID)
             {
                 v2g o;
-                float4 vertex = mul(_RootBone, float4(_Vertices[v.id], 1));
+
+                float3 vertex = _Vertices[id];
                 o.vertex = UnityObjectToClipPos(vertex);
 
                 #ifdef _ORTHO_ON
-                    o.vertex.w = -UnityObjectToViewPos(v.vertex).z;
+                    o.vertex.w = -UnityObjectToViewPos(vertex).z;
                 #else
                     o.projXY = o.vertex.xy / o.vertex.w;
                 #endif
 
                 #ifdef _USE_NORMAL_ON
-                    o.normal = COMPUTE_VIEW_NORMAL;
+                    o.normal = mul((float3x3)UNITY_MATRIX_IT_MV, _Normals[id]);
                 #endif
 
                 return o;
