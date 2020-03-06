@@ -89,7 +89,7 @@ namespace WCGL
 
             var vertices = new Vector3[indices.Length];
             indicesMesh.SetVertices(vertices);
-            indicesMesh.SetIndices(indices, MeshTopology.Lines, 0);
+            indicesMesh.SetIndices(indices, MeshTopology.Quads, 0);
             indicesMesh.UploadMeshData(true);
         }
 

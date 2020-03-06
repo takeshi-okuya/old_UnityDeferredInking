@@ -31,7 +31,6 @@
         {
             CGPROGRAM
             #pragma vertex vert
-            //#pragma geometry geom
             #pragma fragment frag
 
             #include "UnityCG.cginc"
@@ -44,20 +43,7 @@
             #pragma multi_compile _ _USE_NORMAL_ON
             #pragma multi_compile _ _ORTHO_ON
 
-            struct v2g
-            {
-                float4 vertex : POSITION0;
-
-                #if !defined(_ORTHO_ON)
-                float2 projXY : POSITION1;
-                #endif
-
-                #ifdef _USE_NORMAL_ON
-                float3 normal : TEXCOORD0;
-                #endif
-            };
-
-            struct g2f
+            struct v2f
             {
                 float4 vertex : SV_POSITION;
                 float4 center : POSITION1;
@@ -87,75 +73,6 @@
 
             float2 _ID; // (ModelID, MeshID)
 
-            g2f vert (uint id : SV_VertexID)
-            {
-                g2f o;
-
-                int4 ids = _VertexIdx[id / 4];
-                id = ids[id % 4];
-                float3 vertex = _Vertices[id];
-                float4 proj = UnityObjectToClipPos(vertex);
-
-                o.vertex = proj;
-                o.center = proj;
-
-                #ifdef _ORTHO_ON
-                    //o.vertex.w = -UnityObjectToViewPos(vertex).z;
-                #else
-                    //o.projXY = o.vertex.xy / o.vertex.w;
-                #endif
-
-                #ifdef _USE_NORMAL_ON
-                    o.normal = mul((float3x3)UNITY_MATRIX_IT_MV, _Normals[id]);
-                #endif
-
-                return o;
-            }
-
-            bool culling(v2g input[3])
-            {
-                #ifdef _ORTHO_ON
-                    float3 v01 = float3(input[1].vertex.xy - input[0].vertex.xy, 0);
-                    float3 v02 = float3(input[2].vertex.xy - input[0].vertex.xy, 0);
-                #else
-                    float3 v01 = float3(input[1].projXY - input[0].projXY, 0);
-                    float3 v02 = float3(input[2].projXY - input[0].projXY, 0);
-                #endif
-                float c = cross(v01, v02).z;
-
-                bool isFrontFace;
-                #ifdef UNITY_REVERSED_Z
-                    isFrontFace = c >= 0;
-                #else
-                    isFrontFace = c <= 0;
-                #endif
-
-                #ifdef _CULL_FRONT
-                    return isFrontFace;
-                #elif _CULL_BACK
-                    return !isFrontFace;
-                #endif
-            }
-
-            void appendPoint(v2g p, float2 translate, inout g2f o, inout TriangleStream<g2f> ts)
-            {
-                #ifdef _ORTHO_ON
-                    float2 xy = p.vertex.xy + translate;
-                    o.vertex = float4(xy, p.vertex.z, 1);
-                    o.center = p.vertex.xyw;
-                #else
-                    float2 xy = (p.projXY + translate) * p.vertex.w;
-                    o.vertex = float4(xy, p.vertex.zw);
-                    //o.center = float3(p.projXY, p.vertex.w);
-                #endif
-
-                #ifdef _USE_NORMAL_ON
-                    o.normal = p.normal;
-                #endif
-
-                ts.Append(o);
-            }
-
             float compWidth(float distance)
             {
                 float width = _OutlineWidth;
@@ -175,43 +92,47 @@
                 return width * 0.001f;
             }
 
-            void generateLine(v2g p1, v2g p2, float aspect, inout TriangleStream<g2f> ts)
+            v2f vert (uint id : SV_VertexID)
             {
-                #ifdef _ORTHO_ON
-                    float2 v12 = p2.vertex.xy - p1.vertex.xy;
-                #else
-                    float2 v12 = p2.projXY - p1.projXY;
-                #endif
+                v2f o;
 
-                v12.x *= aspect;
-                v12 = normalize(v12);
-                float2 right = float2(-v12.y, v12.x);
-                right.x /= aspect;
+                int4 ids = _VertexIdx[id / 4];
+                int idxID1 = id % 4;
+                int idxID2 = idxID1 == 0 ? 3 : idxID1 - 1;
+                int vertexID1 = ids[idxID1];
+                int vertexID2 = ids[idxID2];
 
-                float2 translate1 = compWidth(p1.vertex.w) * right;
-                float2 translate2 = compWidth(p2.vertex.w) * right;
+                float3 local1 = _Vertices[vertexID1];
+                float3 local2 = _Vertices[vertexID2];
+                float4 proj1 = UnityObjectToClipPos(local1);
+                float4 proj2 = UnityObjectToClipPos(local2);
 
-                g2f o;
-
-                appendPoint(p1, -translate1, o, ts);
-                appendPoint(p2, -translate2, o, ts);
-                appendPoint(p1, translate1, o, ts);
-                appendPoint(p2, translate2, o, ts);
-                ts.RestartStrip();
-            }
-
-            [maxvertexcount(12)]
-            void geom(triangle v2g input[3], uint pid : SV_PrimitiveID, inout TriangleStream<g2f> ts)
-            {
-                #if !defined(_CULL_OFF)
-                    if (culling(input) == true) return;
-                #endif
+                float2 v12 = proj2.xy / proj2.w - proj1.xy / proj1.w;
 
                 float aspect = (-UNITY_MATRIX_P[1][1]) / UNITY_MATRIX_P[0][0];
+                v12.x *= aspect;
+                v12 = normalize(v12);
+                float direction = idxID1 < 2 ? -1 : 1;
+                float2 right = direction * float2(-v12.y, v12.x);
+                right.x /= aspect;
 
-                generateLine(input[0], input[1], aspect, ts);
-                generateLine(input[1], input[2], aspect, ts);
-                generateLine(input[2], input[0], aspect, ts);
+                float2 translate = compWidth(proj1.w) * right;
+
+                o.vertex = proj1;
+                o.vertex.xy += translate * proj1.w;
+                o.center = proj1;
+
+                #ifdef _ORTHO_ON
+                    //o.vertex.w = -UnityObjectToViewPos(vertex).z;
+                #else
+                    //o.projXY = o.vertex.xy / o.vertex.w;
+                #endif
+
+                #ifdef _USE_NORMAL_ON
+                    o.normal = mul((float3x3)UNITY_MATRIX_IT_MV, _Normals[vertexID1]);
+                #endif
+
+                return o;
             }
 
             float decodeGBufferDepth(float2 uv)
@@ -306,7 +227,7 @@
                 clip(isDraw - 0.1f);
             }
 
-            fixed4 frag (g2f i) : SV_Target
+            fixed4 frag (v2f i) : SV_Target
             {
                 float3 center = float3(i.center.xy / i.center.w, i.center.w);
                 float2 uv = (center.xy + 1.0f) * 0.5f;
