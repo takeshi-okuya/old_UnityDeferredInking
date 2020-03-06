@@ -60,7 +60,7 @@
             struct g2f
             {
                 float4 vertex : SV_POSITION;
-                float3 center : POSITION1;
+                float4 center : POSITION1;
                 #ifdef _USE_NORMAL_ON
                 float3 normal : TEXCOORD0;
                 #endif
@@ -78,7 +78,7 @@
 
             StructuredBuffer<float3> _Vertices;
             StructuredBuffer<float3> _Normals;
-            StructuredBuffer<int> _VertexIdx;
+            StructuredBuffer<int4> _VertexIdx;
 
             Texture2D _GBuffer;
             float4 _GBuffer_TexelSize;
@@ -87,18 +87,22 @@
 
             float2 _ID; // (ModelID, MeshID)
 
-            v2g vert (uint id : SV_VertexID)
+            g2f vert (uint id : SV_VertexID)
             {
-                v2g o;
+                g2f o;
 
-                id = _VertexIdx[id];
+                int4 ids = _VertexIdx[id / 4];
+                id = ids[id % 4];
                 float3 vertex = _Vertices[id];
-                o.vertex = UnityObjectToClipPos(vertex);
+                float4 proj = UnityObjectToClipPos(vertex);
+
+                o.vertex = proj;
+                o.center = proj;
 
                 #ifdef _ORTHO_ON
-                    o.vertex.w = -UnityObjectToViewPos(vertex).z;
+                    //o.vertex.w = -UnityObjectToViewPos(vertex).z;
                 #else
-                    o.projXY = o.vertex.xy / o.vertex.w;
+                    //o.projXY = o.vertex.xy / o.vertex.w;
                 #endif
 
                 #ifdef _USE_NORMAL_ON
@@ -142,7 +146,7 @@
                 #else
                     float2 xy = (p.projXY + translate) * p.vertex.w;
                     o.vertex = float4(xy, p.vertex.zw);
-                    o.center = float3(p.projXY, p.vertex.w);
+                    //o.center = float3(p.projXY, p.vertex.w);
                 #endif
 
                 #ifdef _USE_NORMAL_ON
@@ -304,9 +308,8 @@
 
             fixed4 frag (g2f i) : SV_Target
             {
-                return _Color;
-
-                float2 uv = (i.center.xy + 1.0f) * 0.5f;
+                float3 center = float3(i.center.xy / i.center.w, i.center.w);
+                float2 uv = (center.xy + 1.0f) * 0.5f;
                 #if UNITY_UV_STARTS_AT_TOP == 1
                     uv.y = 1 - uv.y;
                 #endif
@@ -320,21 +323,21 @@
                 #endif
 
                 clip(any(isSameIDs) - 0.1f);
-                clipDepthID(i.vertex.xy, i.center.z);
+                clipDepthID(i.vertex.xy, center.z);
 
                 bool isDraw = false;
                 float3x3 depths = sampleDepths(uv);
 
                 #ifdef _USE_OBJECT_ID_ON
-                    isDraw = isDraw || any(!isSameIDs && (depths > i.center.z));
+                    isDraw = isDraw || any(!isSameIDs && (depths > center.z));
                 #endif
 
                 #ifdef _USE_DEPTH_ON
-                    isDraw = isDraw || any(depths - i.center.z > _DepthThreshold);
+                    isDraw = isDraw || any(depths - center.z > _DepthThreshold);
                 #endif
 
                 #ifdef _USE_NORMAL_ON
-                    isDraw = isDraw || detectNormal(i.normal, i.center.z, normals, depths);
+                    isDraw = isDraw || detectNormal(i.normal, center.z, normals, depths);
                 #endif
 
                 clip(isDraw - 0.1f);

@@ -69,7 +69,7 @@ namespace WCGL
             }
 
             vertexIdxs?.Release();
-            vertexIdxs = new ComputeBuffer(vertexIdx.Length, 4);
+            vertexIdxs = new ComputeBuffer(lineSet.Count, 16);
             vertexIdxs.SetData(vertexIdx);
         }
 
