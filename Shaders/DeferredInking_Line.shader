@@ -31,7 +31,7 @@
         {
             CGPROGRAM
             #pragma vertex vert
-            #pragma geometry geom
+            //#pragma geometry geom
             #pragma fragment frag
 
             #include "UnityCG.cginc"
@@ -78,6 +78,7 @@
 
             StructuredBuffer<float3> _Vertices;
             StructuredBuffer<float3> _Normals;
+            StructuredBuffer<int> _VertexIdx;
 
             Texture2D _GBuffer;
             float4 _GBuffer_TexelSize;
@@ -90,6 +91,7 @@
             {
                 v2g o;
 
+                id = _VertexIdx[id];
                 float3 vertex = _Vertices[id];
                 o.vertex = UnityObjectToClipPos(vertex);
 
@@ -302,6 +304,8 @@
 
             fixed4 frag (g2f i) : SV_Target
             {
+                return _Color;
+
                 float2 uv = (i.center.xy + 1.0f) * 0.5f;
                 #if UNITY_UV_STARTS_AT_TOP == 1
                     uv.y = 1 - uv.y;
