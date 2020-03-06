@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -12,14 +13,12 @@ namespace WCGL
 
         ComputeBuffer vertices;
         ComputeBuffer normals;
-        ComputeBuffer vertexIdxs;
         Mesh indicesMesh;
 
         public void release()
         {
             vertices?.Release();
             normals?.Release();
-            vertexIdxs?.Release();
         }
 
         static void AddLines(HashSet<Tuple<int, int>> lineSet, int[] indices)
@@ -55,25 +54,35 @@ namespace WCGL
             return lineSet;
         }
 
-        void createVertexIdx(HashSet<Tuple<int, int>> lineSet)
+        [StructLayout(LayoutKind.Explicit)]
+        public struct IntFloat
         {
-            var vertexIdx = new int[lineSet.Count * 4];
-
-            int i = 0;
-            foreach (var line in lineSet)
-            {
-                vertexIdx[i++] = line.Item1;
-                vertexIdx[i++] = line.Item2;
-                vertexIdx[i++] = line.Item1;
-                vertexIdx[i++] = line.Item2;
-            }
-
-            vertexIdxs?.Release();
-            vertexIdxs = new ComputeBuffer(lineSet.Count, 16);
-            vertexIdxs.SetData(vertexIdx);
+            [FieldOffset(0)] public int _int;
+            [FieldOffset(0)] public float _float;
         }
 
-        void createIndicesMesh(HashSet<Tuple<int, int>> lineSet)
+        Vector3[] createVertex(HashSet<Tuple<int, int>> lineSet)
+        {
+            var vertexIdx = new Vector3[lineSet.Count * 4];
+
+            int i = 0;
+            IntFloat idx1, idx2;
+            idx1._float = idx2._float = 0; //for compile.
+            foreach (var line in lineSet)
+            {
+                idx1._int = line.Item1;
+                idx2._int = line.Item2;
+
+                vertexIdx[i++] = new Vector3(idx1._float, idx2._float, -1);
+                vertexIdx[i++] = new Vector3(idx2._float, idx1._float, -1);
+                vertexIdx[i++] = new Vector3(idx1._float, idx2._float, 1);
+                vertexIdx[i++] = new Vector3(idx2._float, idx1._float, 1);
+            }
+
+            return vertexIdx;
+        }
+
+        int[] createIndicesMesh(HashSet<Tuple<int, int>> lineSet)
         {
             int[] indices = new int[lineSet.Count * 4];
 
@@ -85,19 +94,20 @@ namespace WCGL
                 indices[i + 3] = i + 2;
             }
 
-            if (indicesMesh == null) indicesMesh = new Mesh();
-
-            var vertices = new Vector3[indices.Length];
-            indicesMesh.SetVertices(vertices);
-            indicesMesh.SetIndices(indices, MeshTopology.Quads, 0);
-            indicesMesh.UploadMeshData(true);
+            return indices;
         }
 
         void initIndices()
         {
             var lineSet = createLineSet();
-            createVertexIdx(lineSet);
-            createIndicesMesh(lineSet);
+            var vertices = createVertex(lineSet);
+            var indices = createIndicesMesh(lineSet);
+
+            if (indicesMesh == null) indicesMesh = new Mesh();
+
+            indicesMesh.SetVertices(vertices);
+            indicesMesh.SetIndices(indices, MeshTopology.Quads, 0);
+            indicesMesh.UploadMeshData(true);
         }
 
         void bakeMesh(Renderer mesh)
@@ -142,7 +152,6 @@ namespace WCGL
             bakeMesh(renderer);
             commandBuffer.SetGlobalBuffer("_Vertices", vertices);
             commandBuffer.SetGlobalBuffer("_Normals", normals);
-            commandBuffer.SetGlobalBuffer("_VertexIdx", vertexIdxs);
             commandBuffer.DrawMesh(indicesMesh, renderer.localToWorldMatrix, material);
         }
     }

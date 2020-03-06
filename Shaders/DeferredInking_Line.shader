@@ -64,7 +64,6 @@
 
             StructuredBuffer<float3> _Vertices;
             StructuredBuffer<float3> _Normals;
-            StructuredBuffer<int4> _VertexIdx;
 
             Texture2D _GBuffer;
             float4 _GBuffer_TexelSize;
@@ -92,18 +91,12 @@
                 return width * 0.001f;
             }
 
-            v2f vert (uint id : SV_VertexID)
+            v2f vert (float4 idxs : POSITION0)
             {
                 v2f o;
 
-                int4 ids = _VertexIdx[id / 4];
-                int idxID1 = id % 4;
-                int idxID2 = idxID1 == 0 ? 3 : idxID1 - 1;
-                int vertexID1 = ids[idxID1];
-                int vertexID2 = ids[idxID2];
-
-                float3 local1 = _Vertices[vertexID1];
-                float3 local2 = _Vertices[vertexID2];
+                float3 local1 = _Vertices[asint(idxs.x)];
+                float3 local2 = _Vertices[asint(idxs.y)];
                 float4 proj1 = UnityObjectToClipPos(local1);
                 float4 proj2 = UnityObjectToClipPos(local2);
 
@@ -112,8 +105,7 @@
                 float aspect = (-UNITY_MATRIX_P[1][1]) / UNITY_MATRIX_P[0][0];
                 v12.x *= aspect;
                 v12 = normalize(v12);
-                float direction = idxID1 < 2 ? -1 : 1;
-                float2 right = direction * float2(-v12.y, v12.x);
+                float2 right = idxs.z * float2(-v12.y, v12.x);
                 right.x /= aspect;
 
                 float2 translate = compWidth(proj1.w) * right;
@@ -129,7 +121,7 @@
                 #endif
 
                 #ifdef _USE_NORMAL_ON
-                    o.normal = mul((float3x3)UNITY_MATRIX_IT_MV, _Normals[vertexID1]);
+                    o.normal = mul((float3x3)UNITY_MATRIX_IT_MV, _Normals[asint(idxs.x)]);
                 #endif
 
                 return o;
