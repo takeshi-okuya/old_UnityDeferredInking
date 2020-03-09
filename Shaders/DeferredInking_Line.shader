@@ -72,6 +72,7 @@
                 #ifdef _USE_NORMAL_ON
                 float3 normal : TEXCOORD0;
                 #endif
+                float2 corner : TEXCOORD1; //x:width, y:isCorner(1 or 0).
             };
 
             fixed4 _Color;
@@ -134,7 +135,7 @@
                 #endif
             }
 
-            g2f generatePoint(v2g p, float2 translate)
+            g2f generatePoint(v2g p, float2 translate, float width)
             {
                 g2f o;
 
@@ -151,6 +152,8 @@
                 #ifdef _USE_NORMAL_ON
                     o.normal = p.normal;
                 #endif
+
+                o.corner = float2(width, 0);
 
                 return o;
             }
@@ -174,13 +177,28 @@
                 return width * 0.001f;
             }
 
-            void appendTSLine(in g2f dst[4], inout TriangleStream<g2f> ts)
+            void appendTSLine(in g2f dst[4], float2 direction12, inout TriangleStream<g2f> ts)
             {
+                g2f o = dst[0];
+                o.corner.y = 1;
+                o.vertex.xy -= direction12 * o.corner.x * o.vertex.w;
+                ts.Append(o);
+                o.vertex.xy = dst[1].vertex.xy - direction12 * o.corner.x * o.vertex.w;
+                ts.Append(o);
+
                 [unroll]
                 for (int i = 0; i < 4; i++)
                 {
                     ts.Append(dst[i]);
                 }
+
+                o = dst[2];
+                o.corner.y = 1;
+                o.vertex.xy += direction12 * o.corner.x * o.vertex.w;
+                ts.Append(o);
+                o.vertex.xy = dst[3].vertex.xy + direction12 * o.corner.x * o.vertex.w;
+                ts.Append(o);
+
                 ts.RestartStrip();
             }
 
@@ -195,21 +213,22 @@
                 v12.x *= aspect;
                 v12 = normalize(v12);
                 float2 right = float2(-v12.y, v12.x);
+                v12.x /= aspect;
                 right.x /= aspect;
 
                 float2 translate1 = widths[0] * right;
                 float2 translate2 = widths[1] * right;
 
                 g2f dst[4];
-                dst[0] = generatePoint(p1, -translate1);
-                dst[1] = generatePoint(p2, -translate2);
-                dst[2] = generatePoint(p1, translate1);
-                dst[3] = generatePoint(p2, translate2);
+                dst[0] = generatePoint(p1, translate1, widths[0]);
+                dst[1] = generatePoint(p1, -translate1, widths[0]);
+                dst[2] = generatePoint(p2, translate2, widths[1]);
+                dst[3] = generatePoint(p2, -translate2, widths[1]);
 
-                appendTSLine(dst, ts);
+                appendTSLine(dst, v12, ts);
             }
 
-            [maxvertexcount(12)]
+            [maxvertexcount(24)]
             void geom(triangle v2g input[3], uint pid : SV_PrimitiveID, inout TriangleStream<g2f> ts)
             {
                 #if !defined(_CULL_OFF)
@@ -228,6 +247,19 @@
                 generateLine(input[0], input[1], widths.xy, aspect, ts);
                 generateLine(input[1], input[2], widths.yz, aspect, ts);
                 generateLine(input[2], input[0], widths.zx, aspect, ts);
+            }
+
+            void clipCorner(g2f i)
+            {
+                float width = i.corner.x;
+
+                float2 vpos = ((i.vertex.xy + 0.5) / _ScreenParams.xy - float2(0.5, 0.5)) * 2;
+                vpos.y = -vpos.y;
+                float2 sub = i.center.xy - vpos;
+                float aspect = (-UNITY_MATRIX_P[1][1]) / UNITY_MATRIX_P[0][0];
+                sub.x *= aspect;
+
+                clip((i.corner.y == 0 || dot(sub, sub) < width * width) - 0.1);
             }
 
             float decodeGBufferDepth(float2 uv)
@@ -324,6 +356,8 @@
 
             fixed4 frag (g2f i) : SV_Target
             {
+                clipCorner(i);
+
                 float2 uv = (i.center.xy + 1.0f) * 0.5f;
                 #if UNITY_UV_STARTS_AT_TOP == 1
                     uv.y = 1 - uv.y;
