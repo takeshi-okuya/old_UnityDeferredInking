@@ -201,15 +201,6 @@
                     ts.Append(dst[i]);
                 }
 
-                #ifdef _FILL_CORNER_ON
-                    o = dst[2];
-                    o.corner.y = 1;
-                    o.vertex.xy += direction12 * o.corner.x * o.vertex.w;
-                    ts.Append(o);
-                    o.vertex.xy = dst[3].vertex.xy + direction12 * o.corner.x * o.vertex.w;
-                    ts.Append(o);
-                #endif
-
                 ts.RestartStrip();
             }
 
@@ -240,7 +231,7 @@
             }
 
         #ifdef _FILL_CORNER_ON
-            [maxvertexcount(24)]
+            [maxvertexcount(18)]
         #else
             [maxvertexcount(12)]
         #endif
@@ -269,7 +260,7 @@
             {
                 float width = i.corner.x;
 
-                float2 vpos = ((i.vertex.xy + 0.5) / _ScreenParams.xy - float2(0.5, 0.5)) * 2;
+                float2 vpos = (i.vertex.xy + 0.5) / _ScreenParams.xy * 2.0 - 1.0;
                 vpos.y = -vpos.y;
                 float2 sub = i.center.xy - vpos;
                 float aspect = (-UNITY_MATRIX_P[1][1]) / UNITY_MATRIX_P[0][0];
