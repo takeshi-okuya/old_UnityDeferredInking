@@ -21,6 +21,8 @@
         [Toggle] _Use_Normal("Use Normal", Float) = 0
         _NormalThreshold("Threshold_Normal", Range(-1, 1)) = 0.5
         _DepthRange("Depth_Range", FLOAT) = 0.2
+        [Space]
+        [Toggle] _Fill_Corner("Fill Corner", Float) = 0
     }
     SubShader
     {
@@ -42,6 +44,7 @@
             #pragma multi_compile _ _USE_OBJECT_ID_ON
             #pragma multi_compile _ _USE_DEPTH_ON
             #pragma multi_compile _ _USE_NORMAL_ON
+            #pragma multi_compile _ _FILL_CORNER_ON
             #pragma multi_compile _ _ORTHO_ON
 
             struct appdata
@@ -72,7 +75,9 @@
                 #ifdef _USE_NORMAL_ON
                 float3 normal : TEXCOORD0;
                 #endif
+                #ifdef _FILL_CORNER_ON
                 float2 corner : TEXCOORD1; //x:width, y:isCorner(1 or 0).
+                #endif
             };
 
             fixed4 _Color;
@@ -153,7 +158,9 @@
                     o.normal = p.normal;
                 #endif
 
-                o.corner = float2(width, 0);
+                #ifdef _FILL_CORNER_ON
+                    o.corner = float2(width, 0);
+                #endif
 
                 return o;
             }
@@ -179,12 +186,14 @@
 
             void appendTSLine(in g2f dst[4], float2 direction12, inout TriangleStream<g2f> ts)
             {
-                g2f o = dst[0];
-                o.corner.y = 1;
-                o.vertex.xy -= direction12 * o.corner.x * o.vertex.w;
-                ts.Append(o);
-                o.vertex.xy = dst[1].vertex.xy - direction12 * o.corner.x * o.vertex.w;
-                ts.Append(o);
+                #ifdef _FILL_CORNER_ON
+                    g2f o = dst[0];
+                    o.corner.y = 1;
+                    o.vertex.xy -= direction12 * o.corner.x * o.vertex.w;
+                    ts.Append(o);
+                    o.vertex.xy = dst[1].vertex.xy - direction12 * o.corner.x * o.vertex.w;
+                    ts.Append(o);
+                #endif
 
                 [unroll]
                 for (int i = 0; i < 4; i++)
@@ -192,12 +201,14 @@
                     ts.Append(dst[i]);
                 }
 
-                o = dst[2];
-                o.corner.y = 1;
-                o.vertex.xy += direction12 * o.corner.x * o.vertex.w;
-                ts.Append(o);
-                o.vertex.xy = dst[3].vertex.xy + direction12 * o.corner.x * o.vertex.w;
-                ts.Append(o);
+                #ifdef _FILL_CORNER_ON
+                    o = dst[2];
+                    o.corner.y = 1;
+                    o.vertex.xy += direction12 * o.corner.x * o.vertex.w;
+                    ts.Append(o);
+                    o.vertex.xy = dst[3].vertex.xy + direction12 * o.corner.x * o.vertex.w;
+                    ts.Append(o);
+                #endif
 
                 ts.RestartStrip();
             }
@@ -228,7 +239,11 @@
                 appendTSLine(dst, v12, ts);
             }
 
+        #ifdef _FILL_CORNER_ON
             [maxvertexcount(24)]
+        #else
+            [maxvertexcount(12)]
+        #endif
             void geom(triangle v2g input[3], uint pid : SV_PrimitiveID, inout TriangleStream<g2f> ts)
             {
                 #if !defined(_CULL_OFF)
@@ -249,6 +264,7 @@
                 generateLine(input[2], input[0], widths.zx, aspect, ts);
             }
 
+        #ifdef _FILL_CORNER_ON
             void clipCorner(g2f i)
             {
                 float width = i.corner.x;
@@ -261,6 +277,7 @@
 
                 clip((i.corner.y == 0 || dot(sub, sub) < width * width) - 0.1);
             }
+        #endif
 
             float decodeGBufferDepth(float2 uv)
             {
@@ -356,7 +373,9 @@
 
             fixed4 frag (g2f i) : SV_Target
             {
-                clipCorner(i);
+                #ifdef _FILL_CORNER_ON
+                    clipCorner(i);
+                #endif
 
                 float2 uv = (i.center.xy + 1.0f) * 0.5f;
                 #if UNITY_UV_STARTS_AT_TOP == 1
