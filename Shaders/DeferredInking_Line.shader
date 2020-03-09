@@ -134,8 +134,10 @@
                 #endif
             }
 
-            void appendPoint(v2g p, float2 translate, inout g2f o, inout TriangleStream<g2f> ts)
+            g2f generatePoint(v2g p, float2 translate)
             {
+                g2f o;
+
                 #ifdef _ORTHO_ON
                     float2 xy = p.vertex.xy + translate;
                     o.vertex = float4(xy, p.vertex.z, 1);
@@ -150,7 +152,7 @@
                     o.normal = p.normal;
                 #endif
 
-                ts.Append(o);
+                return o;
             }
 
             float compWidth(float distance)
@@ -172,7 +174,17 @@
                 return width * 0.001f;
             }
 
-            void generateLine(v2g p1, v2g p2, float aspect, inout TriangleStream<g2f> ts)
+            void appendTSLine(in g2f dst[4], inout TriangleStream<g2f> ts)
+            {
+                [unroll]
+                for (int i = 0; i < 4; i++)
+                {
+                    ts.Append(dst[i]);
+                }
+                ts.RestartStrip();
+            }
+
+            void generateLine(v2g p1, v2g p2, float2 widths, float aspect, inout TriangleStream<g2f> ts)
             {
                 #ifdef _ORTHO_ON
                     float2 v12 = p2.vertex.xy - p1.vertex.xy;
@@ -185,16 +197,16 @@
                 float2 right = float2(-v12.y, v12.x);
                 right.x /= aspect;
 
-                float2 translate1 = compWidth(p1.vertex.w) * right;
-                float2 translate2 = compWidth(p2.vertex.w) * right;
+                float2 translate1 = widths[0] * right;
+                float2 translate2 = widths[1] * right;
 
-                g2f o;
+                g2f dst[4];
+                dst[0] = generatePoint(p1, -translate1);
+                dst[1] = generatePoint(p2, -translate2);
+                dst[2] = generatePoint(p1, translate1);
+                dst[3] = generatePoint(p2, translate2);
 
-                appendPoint(p1, -translate1, o, ts);
-                appendPoint(p2, -translate2, o, ts);
-                appendPoint(p1, translate1, o, ts);
-                appendPoint(p2, translate2, o, ts);
-                ts.RestartStrip();
+                appendTSLine(dst, ts);
             }
 
             [maxvertexcount(12)]
@@ -206,9 +218,16 @@
 
                 float aspect = (-UNITY_MATRIX_P[1][1]) / UNITY_MATRIX_P[0][0];
 
-                generateLine(input[0], input[1], aspect, ts);
-                generateLine(input[1], input[2], aspect, ts);
-                generateLine(input[2], input[0], aspect, ts);
+                float3 widths;
+                [unroll]
+                for(int i=0; i<3; i++)
+                {
+                    widths[i] = compWidth(input[i].vertex.w);
+                }
+
+                generateLine(input[0], input[1], widths.xy, aspect, ts);
+                generateLine(input[1], input[2], widths.yz, aspect, ts);
+                generateLine(input[2], input[0], widths.zx, aspect, ts);
             }
 
             float decodeGBufferDepth(float2 uv)
