@@ -21,6 +21,8 @@
         [Toggle] _Use_Normal("Use Normal", Float) = 0
         _NormalThreshold("Threshold_Normal", Range(-1, 1)) = 0.5
         _DepthRange("Depth_Range", FLOAT) = 0.2
+        [Space]
+        [Toggle] _Fill_Corner("Fill Corner", Float) = 0
     }
     SubShader
     {
@@ -42,6 +44,7 @@
             #pragma multi_compile _ _USE_OBJECT_ID_ON
             #pragma multi_compile _ _USE_DEPTH_ON
             #pragma multi_compile _ _USE_NORMAL_ON
+            #pragma multi_compile _ _FILL_CORNER_ON
             #pragma multi_compile _ _ORTHO_ON
 
             struct appdata
@@ -71,6 +74,9 @@
                 float3 center : POSITION1;
                 #ifdef _USE_NORMAL_ON
                 float3 normal : TEXCOORD0;
+                #endif
+                #ifdef _FILL_CORNER_ON
+                float2 corner : TEXCOORD1; //x:width, y:isCorner(1 or 0).
                 #endif
             };
 
@@ -134,8 +140,10 @@
                 #endif
             }
 
-            void appendPoint(v2g p, float2 translate, inout g2f o, inout TriangleStream<g2f> ts)
+            g2f generatePoint(v2g p, float2 translate, float width)
             {
+                g2f o;
+
                 #ifdef _ORTHO_ON
                     float2 xy = p.vertex.xy + translate;
                     o.vertex = float4(xy, p.vertex.z, 1);
@@ -150,7 +158,11 @@
                     o.normal = p.normal;
                 #endif
 
-                ts.Append(o);
+                #ifdef _FILL_CORNER_ON
+                    o.corner = float2(width, 0);
+                #endif
+
+                return o;
             }
 
             float compWidth(float distance)
@@ -172,7 +184,27 @@
                 return width * 0.001f;
             }
 
-            void generateLine(v2g p1, v2g p2, float aspect, inout TriangleStream<g2f> ts)
+            void appendTSLine(in g2f dst[4], float2 direction12, inout TriangleStream<g2f> ts)
+            {
+                #ifdef _FILL_CORNER_ON
+                    g2f o = dst[0];
+                    o.corner.y = 1;
+                    o.vertex.xy -= direction12 * o.corner.x * o.vertex.w;
+                    ts.Append(o);
+                    o.vertex.xy = dst[1].vertex.xy - direction12 * o.corner.x * o.vertex.w;
+                    ts.Append(o);
+                #endif
+
+                [unroll]
+                for (int i = 0; i < 4; i++)
+                {
+                    ts.Append(dst[i]);
+                }
+
+                ts.RestartStrip();
+            }
+
+            void generateLine(v2g p1, v2g p2, float2 widths, float aspect, inout TriangleStream<g2f> ts)
             {
                 #ifdef _ORTHO_ON
                     float2 v12 = p2.vertex.xy - p1.vertex.xy;
@@ -183,21 +215,26 @@
                 v12.x *= aspect;
                 v12 = normalize(v12);
                 float2 right = float2(-v12.y, v12.x);
+                v12.x /= aspect;
                 right.x /= aspect;
 
-                float2 translate1 = compWidth(p1.vertex.w) * right;
-                float2 translate2 = compWidth(p2.vertex.w) * right;
+                float2 translate1 = widths[0] * right;
+                float2 translate2 = widths[1] * right;
 
-                g2f o;
+                g2f dst[4];
+                dst[0] = generatePoint(p1, translate1, widths[0]);
+                dst[1] = generatePoint(p1, -translate1, widths[0]);
+                dst[2] = generatePoint(p2, translate2, widths[1]);
+                dst[3] = generatePoint(p2, -translate2, widths[1]);
 
-                appendPoint(p1, -translate1, o, ts);
-                appendPoint(p2, -translate2, o, ts);
-                appendPoint(p1, translate1, o, ts);
-                appendPoint(p2, translate2, o, ts);
-                ts.RestartStrip();
+                appendTSLine(dst, v12, ts);
             }
 
+        #ifdef _FILL_CORNER_ON
+            [maxvertexcount(18)]
+        #else
             [maxvertexcount(12)]
+        #endif
             void geom(triangle v2g input[3], uint pid : SV_PrimitiveID, inout TriangleStream<g2f> ts)
             {
                 #if !defined(_CULL_OFF)
@@ -206,10 +243,32 @@
 
                 float aspect = (-UNITY_MATRIX_P[1][1]) / UNITY_MATRIX_P[0][0];
 
-                generateLine(input[0], input[1], aspect, ts);
-                generateLine(input[1], input[2], aspect, ts);
-                generateLine(input[2], input[0], aspect, ts);
+                float3 widths;
+                [unroll]
+                for(int i=0; i<3; i++)
+                {
+                    widths[i] = compWidth(input[i].vertex.w);
+                }
+
+                generateLine(input[0], input[1], widths.xy, aspect, ts);
+                generateLine(input[1], input[2], widths.yz, aspect, ts);
+                generateLine(input[2], input[0], widths.zx, aspect, ts);
             }
+
+        #ifdef _FILL_CORNER_ON
+            void clipCorner(g2f i)
+            {
+                float width = i.corner.x;
+
+                float2 vpos = (i.vertex.xy + 0.5) / _ScreenParams.xy * 2.0 - 1.0;
+                vpos.y = -vpos.y;
+                float2 sub = i.center.xy - vpos;
+                float aspect = (-UNITY_MATRIX_P[1][1]) / UNITY_MATRIX_P[0][0];
+                sub.x *= aspect;
+
+                clip((i.corner.y == 0 || dot(sub, sub) < width * width) - 0.1);
+            }
+        #endif
 
             float decodeGBufferDepth(float2 uv)
             {
@@ -305,6 +364,10 @@
 
             fixed4 frag (g2f i) : SV_Target
             {
+                #ifdef _FILL_CORNER_ON
+                    clipCorner(i);
+                #endif
+
                 float2 uv = (i.center.xy + 1.0f) * 0.5f;
                 #if UNITY_UV_STARTS_AT_TOP == 1
                     uv.y = 1 - uv.y;
