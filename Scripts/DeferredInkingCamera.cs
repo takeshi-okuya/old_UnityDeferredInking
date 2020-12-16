@@ -59,7 +59,7 @@ namespace WCGL
             if (lineBuffer == null || lineBuffer.width != cam.pixelWidth || lineBuffer.height != cam.pixelHeight)
             {
                 if (lineBuffer != null) lineBuffer.Release();
-                lineBuffer = new RenderTexture(cam.pixelWidth, cam.pixelHeight, 16);
+                lineBuffer = new RenderTexture(cam.pixelWidth, cam.pixelHeight, 16, RenderTextureFormat.ARGBHalf);
                 lineBuffer.name = "DeferredInking_line";
                 lineBuffer.antiAliasing = 4;
                 lineBuffer.wrapMode = TextureWrapMode.Clamp;
