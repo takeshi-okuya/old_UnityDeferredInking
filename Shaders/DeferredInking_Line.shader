@@ -58,13 +58,14 @@
             struct v2g
             {
                 float4 vertex : POSITION0;
+                float width : TEXCOORD0;
 
                 #if !defined(_ORTHO_ON)
                 float2 projXY : POSITION1;
                 #endif
 
                 #ifdef _USE_NORMAL_ON
-                float3 normal : TEXCOORD0;
+                float3 normal : NORMAL0;
                 #endif
             };
 
@@ -97,6 +98,25 @@
 
             float2 _ID; // (ModelID, MeshID)
 
+            float compWidth(float distance)
+            {
+                float width = _OutlineWidth;
+
+                #ifdef _WIDTH_BY_DISTANCE_ON
+                    width /= distance;
+                #endif
+
+                #ifdef _WIDTH_BY_FOV_ON
+                    width *= unity_CameraProjection[1][1] / 4.167;
+                #endif
+
+                #if defined(_WIDTH_BY_DISTANCE_ON) || defined(_WIDTH_BY_FOV_ON)
+                    width = clamp(width, _MinWidth, _MaxWidth);
+                #endif
+
+                return width * 0.001f;
+            }
+
             v2g vert (appdata v)
             {
                 v2g o;
@@ -107,6 +127,8 @@
                 #else
                     o.projXY = o.vertex.xy / o.vertex.w;
                 #endif
+
+                o.width = compWidth(o.vertex.w);
 
                 #ifdef _USE_NORMAL_ON
                     o.normal = COMPUTE_VIEW_NORMAL;
@@ -140,7 +162,7 @@
                 #endif
             }
 
-            g2f generatePoint(v2g p, float2 translate, float width)
+            g2f generatePoint(v2g p, float2 translate)
             {
                 g2f o;
 
@@ -159,29 +181,10 @@
                 #endif
 
                 #ifdef _FILL_CORNER_ON
-                    o.corner = float2(width, 0);
+                    o.corner = float2(p.width, 0);
                 #endif
 
                 return o;
-            }
-
-            float compWidth(float distance)
-            {
-                float width = _OutlineWidth;
-
-                #ifdef _WIDTH_BY_DISTANCE_ON
-                    width /= distance;
-                #endif
-
-                #ifdef _WIDTH_BY_FOV_ON
-                    width *= unity_CameraProjection[1][1] / 4.167;
-                #endif
-
-                #if defined(_WIDTH_BY_DISTANCE_ON) || defined(_WIDTH_BY_FOV_ON)
-                    width = clamp(width, _MinWidth, _MaxWidth);
-                #endif
-
-                return width * 0.001f;
             }
 
             void appendTSLine(in g2f dst[4], float2 direction12, inout TriangleStream<g2f> ts)
@@ -204,7 +207,7 @@
                 ts.RestartStrip();
             }
 
-            void generateLine(v2g p1, v2g p2, float2 widths, float aspect, inout TriangleStream<g2f> ts)
+            void generateLine(v2g p1, v2g p2, float aspect, inout TriangleStream<g2f> ts)
             {
                 #ifdef _ORTHO_ON
                     float2 v12 = p2.vertex.xy - p1.vertex.xy;
@@ -218,14 +221,14 @@
                 v12.x /= aspect;
                 right.x /= aspect;
 
-                float2 translate1 = widths[0] * right;
-                float2 translate2 = widths[1] * right;
+                float2 translate1 = p1.width * right;
+                float2 translate2 = p2.width * right;
 
                 g2f dst[4];
-                dst[0] = generatePoint(p1, translate1, widths[0]);
-                dst[1] = generatePoint(p1, -translate1, widths[0]);
-                dst[2] = generatePoint(p2, translate2, widths[1]);
-                dst[3] = generatePoint(p2, -translate2, widths[1]);
+                dst[0] = generatePoint(p1, translate1);
+                dst[1] = generatePoint(p1, -translate1);
+                dst[2] = generatePoint(p2, translate2);
+                dst[3] = generatePoint(p2, -translate2);
 
                 appendTSLine(dst, v12, ts);
             }
@@ -235,7 +238,7 @@
         #else
             [maxvertexcount(12)]
         #endif
-            void geom(triangle v2g input[3], uint pid : SV_PrimitiveID, inout TriangleStream<g2f> ts)
+            void geom(triangle v2g input[3], inout TriangleStream<g2f> ts)
             {
                 #if !defined(_CULL_OFF)
                     if (culling(input) == true) return;
@@ -243,16 +246,9 @@
 
                 float aspect = (-UNITY_MATRIX_P[1][1]) / UNITY_MATRIX_P[0][0];
 
-                float3 widths;
-                [unroll]
-                for(int i=0; i<3; i++)
-                {
-                    widths[i] = compWidth(input[i].vertex.w);
-                }
-
-                generateLine(input[0], input[1], widths.xy, aspect, ts);
-                generateLine(input[1], input[2], widths.yz, aspect, ts);
-                generateLine(input[2], input[0], widths.zx, aspect, ts);
+                generateLine(input[0], input[1], aspect, ts);
+                generateLine(input[1], input[2], aspect, ts);
+                generateLine(input[2], input[0], aspect, ts);
             }
 
         #ifdef _FILL_CORNER_ON
