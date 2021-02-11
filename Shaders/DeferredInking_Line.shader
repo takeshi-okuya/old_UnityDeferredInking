@@ -26,7 +26,7 @@
     }
     SubShader
     {
-        Tags { "RenderType"="Opaque" "LineType" = "DeferredInking" }
+        Tags { "RenderType" = "Opaque" "LineType" = "DeferredInking" }
         LOD 100
 
         Pass
@@ -117,7 +117,7 @@
                 return width * 0.001f;
             }
 
-            v2g vert (appdata v)
+            v2g vert(appdata v)
             {
                 v2g o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
@@ -162,9 +162,26 @@
                 #endif
             }
 
-            g2f generatePoint(v2g p, float2 translate)
+            void compDirection(v2g p1, v2g p2, float aspect, out float2 v12, out float2 right)
+            {
+                #ifdef _ORTHO_ON
+                    v12 = p2.vertex.xy - p1.vertex.xy;
+                #else
+                    v12 = p2.projXY - p1.projXY;
+                #endif
+
+                v12.x *= aspect;
+                v12 = normalize(v12);
+                right = float2(-v12.y, v12.x);
+
+                v12.x /= aspect;
+                right.x /= aspect;
+            }
+
+            g2f generatePoint(v2g p, float2 direction)
             {
                 g2f o;
+                float2 translate = p.width * direction;
 
                 #ifdef _ORTHO_ON
                     float2 xy = p.vertex.xy + translate;
@@ -209,26 +226,14 @@
 
             void generateLine(v2g p1, v2g p2, float aspect, inout TriangleStream<g2f> ts)
             {
-                #ifdef _ORTHO_ON
-                    float2 v12 = p2.vertex.xy - p1.vertex.xy;
-                #else
-                    float2 v12 = p2.projXY - p1.projXY;
-                #endif
-
-                v12.x *= aspect;
-                v12 = normalize(v12);
-                float2 right = float2(-v12.y, v12.x);
-                v12.x /= aspect;
-                right.x /= aspect;
-
-                float2 translate1 = p1.width * right;
-                float2 translate2 = p2.width * right;
+                float2 v12, right;
+                compDirection(p1, p2, aspect, v12, right);
 
                 g2f dst[4];
-                dst[0] = generatePoint(p1, translate1);
-                dst[1] = generatePoint(p1, -translate1);
-                dst[2] = generatePoint(p2, translate2);
-                dst[3] = generatePoint(p2, -translate2);
+                dst[0] = generatePoint(p1, right);
+                dst[1] = generatePoint(p1, -right);
+                dst[2] = generatePoint(p2, right);
+                dst[3] = generatePoint(p2, -right);
 
                 appendTSLine(dst, v12, ts);
             }
@@ -272,7 +277,7 @@
 
                 #ifdef _ORTHO_ON
                     #if !defined(UNITY_REVERSED_Z)
-                        gbDepth =  2 * gbDepth - 1;
+                        gbDepth = 2 * gbDepth - 1;
                     #endif
                     return -(gbDepth - UNITY_MATRIX_P[2][3]) / UNITY_MATRIX_P[2][2];
                 #else
@@ -358,7 +363,7 @@
                 clip(isDraw - 0.1f);
             }
 
-            fixed4 frag (g2f i) : SV_Target
+            fixed4 frag(g2f i) : SV_Target
             {
                 #ifdef _FILL_CORNER_ON
                     clipCorner(i);
