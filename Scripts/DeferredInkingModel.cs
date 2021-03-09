@@ -20,23 +20,21 @@ namespace WCGL
                 var renderer = mesh;
                 if (renderer == null || renderer.enabled == false) return;
 
-                Material mat;
-                if (phase == DeferredInkingCamera.RenderPhase.Line)
-                {
-                    mat = material;
-                    if (material == null) return;
-                }
-                else
-                {
-                    mat = GBufferMaterial;
-                }
-
                 if (phase == DeferredInkingCamera.RenderPhase.GBuffer || material.GetTag("LineType", false) == "DeferredInking")
                 {
                     var id = new Vector2(modelID, meshID);
                     commandBuffer.SetGlobalVector("_ID", id);
                 }
-                commandBuffer.DrawRenderer(renderer, mat);
+
+                if (phase == DeferredInkingCamera.RenderPhase.Line)
+                {
+                    if (material == null) return;
+                    commandBuffer.DrawRenderer(renderer, material);
+                }
+                else
+                {
+                    commandBuffer.DrawRenderer(renderer, GBufferMaterial);
+                }
             }
         }
 
