@@ -157,24 +157,30 @@ namespace WCGL
             blitToFrameBuffer();
         }
 
+        static List<GameObject> _RootGameObjects = new List<GameObject>();
+        static List<Renderer> _Renderers = new List<Renderer>();
+        static List<Material> _SharedMaterials = new List<Material>();
         private void renderGBufferDepth()
         {
             commandBuffer.SetRenderTarget(gBuffer, gBufferDepth);
             commandBuffer.ClearRenderTarget(true, true, Color.clear);
             commandBuffer.SetGlobalVector("unity_LightShadowBias", Vector4.zero);
 
-            var renderers = FindObjectsOfType<Renderer>();
-            foreach (var r in renderers)
+            gameObject.scene.GetRootGameObjects(_RootGameObjects);
+            foreach (var root in _RootGameObjects)
             {
-                if (r.isVisible == false) continue;
-
-                var materials = r.sharedMaterials;
-                for (int i = 0; i < materials.Length; i++)
+                root.GetComponentsInChildren<Renderer>(_Renderers);
+                foreach (var r in _Renderers)
                 {
-                    int matIdx = Math.Min(i, materials.Length - 1);
-                    var mat = materials[matIdx];
-                    int passIndex = mat.FindPass("ShadowCaster");
-                    if (passIndex >= 0) { commandBuffer.DrawRenderer(r, mat, i, passIndex); }
+                    if (r.isVisible == false) continue;
+
+                    r.GetSharedMaterials(_SharedMaterials);
+                    for (int i = 0; i < _SharedMaterials.Count; i++)
+                    {
+                        var mat = _SharedMaterials[i];
+                        int passIndex = mat.FindPass("ShadowCaster");
+                        if (passIndex >= 0) { commandBuffer.DrawRenderer(r, mat, i, passIndex); }
+                    }
                 }
             }
         }
