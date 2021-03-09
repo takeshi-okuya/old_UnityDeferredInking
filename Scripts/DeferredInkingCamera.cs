@@ -101,7 +101,7 @@ namespace WCGL
         {
             var depthBuffer = (gBufferResolutionMode == ResolutionMode.Same) ?
                 (RenderTargetIdentifier)BuiltinRenderTextureType.Depth : gBufferDepth;
-            if (depthBuffer == gBufferDepth) renderGBufferZero();
+            if (depthBuffer == gBufferDepth) renderGBufferDepth();
 
             commandBuffer.SetRenderTarget(gBuffer.colorBuffer, depthBuffer);
             commandBuffer.ClearRenderTarget(false, true, Color.clear);
@@ -157,7 +157,7 @@ namespace WCGL
             blitToFrameBuffer();
         }
 
-        private void renderGBufferZero()
+        private void renderGBufferDepth()
         {
             commandBuffer.SetRenderTarget(gBuffer, gBufferDepth);
             commandBuffer.ClearRenderTarget(true, true, Color.clear);
@@ -167,13 +167,9 @@ namespace WCGL
             foreach (var r in renderers)
             {
                 if (r.isVisible == false) continue;
-                var sr = r as SkinnedMeshRenderer;
 
-                var mesh = sr == null ? r.GetComponent<MeshFilter>().sharedMesh : sr.sharedMesh;
-                int subMeshCount = mesh.subMeshCount;
                 var materials = r.sharedMaterials;
-
-                for (int i = 0; i < subMeshCount; i++)
+                for (int i = 0; i < materials.Length; i++)
                 {
                     int matIdx = Math.Min(i, materials.Length - 1);
                     var mat = materials[matIdx];
@@ -185,9 +181,12 @@ namespace WCGL
 
         private void render(RenderPhase phase)
         {
-            foreach (var model in DeferredInkingModel.GetInstances())
+            IReadOnlyList<DeferredInkingModel> models = DeferredInkingModel.GetInstances();
+
+            //Don't use foreach, reduce GC Alloc.
+            for(int i=0; i<models.Count; i++)
             {
-                model.render(commandBuffer, phase);
+                models[i].render(commandBuffer, phase);
             }
         }
 
