@@ -9,11 +9,35 @@ namespace WCGL
     public class DeferredInkingModel : MonoBehaviour
     {
         [System.Serializable]
-        public struct Mesh
+        public class Mesh
         {
             public Renderer mesh;
             public Material material;
             [Range(0, 255)] public int meshID;
+
+            public void render(CommandBuffer commandBuffer, DeferredInkingCamera.RenderPhase phase, int modelID, Material GBufferMaterial)
+            {
+                var renderer = mesh;
+                if (renderer == null || renderer.enabled == false) return;
+
+                Material mat;
+                if (phase == DeferredInkingCamera.RenderPhase.Line)
+                {
+                    mat = material;
+                    if (material == null) return;
+                }
+                else
+                {
+                    mat = GBufferMaterial;
+                }
+
+                if (phase == DeferredInkingCamera.RenderPhase.GBuffer || material.GetTag("LineType", false) == "DeferredInking")
+                {
+                    var id = new Vector2(modelID, meshID);
+                    commandBuffer.SetGlobalVector("_ID", id);
+                }
+                commandBuffer.DrawRenderer(renderer, mat);
+            }
         }
 
         readonly static List<DeferredInkingModel> Instances = new List<DeferredInkingModel>();
@@ -30,6 +54,14 @@ namespace WCGL
         void OnDisable()
         {
             Instances.Remove(this);
+        }
+
+        public void render(CommandBuffer commandBuffer, DeferredInkingCamera.RenderPhase phase, Material GBufferMaterial)
+        {
+            foreach (var mesh in meshes)
+            {
+                mesh.render(commandBuffer, phase, modelID, GBufferMaterial);
+            }
         }
     }
 }

@@ -23,7 +23,7 @@ namespace WCGL
         public ResolutionMode gBufferResolutionMode = ResolutionMode.Same;
         public Vector2Int customGBufferResolution = new Vector2Int(1920, 1080);
 
-        enum RenderPhase { GBuffer, Line }
+        public enum RenderPhase { GBuffer, Line }
 
         void resizeRenderTexture()
         {
@@ -201,31 +201,9 @@ namespace WCGL
 
         private void render(RenderPhase phase)
         {
-            Material mat = GBufferMaterial;
-
             foreach (var model in DeferredInkingModel.GetInstances())
             {
-                if (model.isActiveAndEnabled == false) continue;
-                var id = new Vector2(model.modelID, 0);
-
-                foreach (var mesh in model.meshes)
-                {
-                    var renderer = mesh.mesh;
-                    if (renderer == null || renderer.enabled == false) continue;
-
-                    if (phase == RenderPhase.Line)
-                    {
-                        mat = mesh.material;
-                        if (mat == null) continue;
-                    }
-
-                    if (phase == RenderPhase.GBuffer || mat.GetTag("LineType", false) == "DeferredInking")
-                    {
-                        id.y = mesh.meshID;
-                        commandBuffer.SetGlobalVector("_ID", id);
-                    }
-                    commandBuffer.DrawRenderer(renderer, mat);
-                }
+                model.render(commandBuffer, phase, GBufferMaterial);
             }
         }
 
