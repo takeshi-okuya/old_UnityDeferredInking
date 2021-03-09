@@ -157,20 +157,6 @@ namespace WCGL
             blitToFrameBuffer();
         }
 
-        private void addShadowCaster(Renderer r, Material mat, int meshIdx)
-        {
-            int passCount = mat.passCount;
-
-            for (int i = 0; i < passCount; i++)
-            {
-                if (mat.GetPassName(i) == "ShadowCaster")
-                {
-                    commandBuffer.DrawRenderer(r, mat, meshIdx, i);
-                    return;
-                }
-            }
-        }
-
         private void renderGBufferZero()
         {
             commandBuffer.SetRenderTarget(gBuffer, gBufferDepth);
@@ -191,7 +177,8 @@ namespace WCGL
                 {
                     int matIdx = Math.Min(i, materials.Length - 1);
                     var mat = materials[matIdx];
-                    addShadowCaster(r, mat, i);
+                    int passIndex = mat.FindPass("ShadowCaster");
+                    if (passIndex >= 0) { commandBuffer.DrawRenderer(r, mat, i, passIndex); }
                 }
             }
         }
