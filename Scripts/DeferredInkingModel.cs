@@ -15,7 +15,9 @@ namespace WCGL
             public Material material;
             [Range(0, 255)] public int meshID;
         }
-        public static List<DeferredInkingModel> Instances = new List<DeferredInkingModel>();
+
+        readonly static List<DeferredInkingModel> Instances = new List<DeferredInkingModel>();
+        public static IReadOnlyList<DeferredInkingModel> GetInstances() { return Instances; }
 
         [Range(1, 255)] public int modelID = 255;
         public List<Mesh> meshes = new List<Mesh>();

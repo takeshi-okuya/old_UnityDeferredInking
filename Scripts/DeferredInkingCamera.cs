@@ -195,7 +195,7 @@ namespace WCGL
         {
             Material mat = GBufferMaterial;
 
-            foreach (var model in DeferredInkingModel.Instances)
+            foreach (var model in DeferredInkingModel.GetInstances())
             {
                 if (model.isActiveAndEnabled == false) continue;
                 var id = new Vector2(model.modelID, 0);
