@@ -22,17 +22,14 @@ namespace WCGL
         [Range(1, 255)] public int modelID = 255;
         public List<Mesh> meshes = new List<Mesh>();
 
-        void Start() { } //for Inspector ON_OFF
-
-        void Awake()
+        void OnEnable()
         {
             Instances.Add(this);
         }
 
-        void OnDestroy()
+        void OnDisable()
         {
             Instances.Remove(this);
         }
-
     }
 }

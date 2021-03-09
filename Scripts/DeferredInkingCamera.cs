@@ -25,8 +25,6 @@ namespace WCGL
 
         enum RenderPhase { GBuffer, Line }
 
-        void Start() { } //for Inspector ON_OFF
-
         void resizeRenderTexture()
         {
             var camSize = new Vector2Int(cam.pixelWidth, cam.pixelHeight);
@@ -67,7 +65,7 @@ namespace WCGL
             }
         }
 
-        void Awake()
+        void init()
         {
             cam = GetComponent<Camera>();
             if (cam == null)
@@ -78,7 +76,6 @@ namespace WCGL
 
             commandBuffer = new CommandBuffer();
             commandBuffer.name = "DeferredInking";
-            cam.AddCommandBuffer(CameraEvent.AfterSkybox, commandBuffer);
 
             resizeRenderTexture();
 
@@ -90,6 +87,17 @@ namespace WCGL
                 shader = Shader.Find("Hidden/DeferredInking/GBuffer");
                 GBufferMaterial = new Material(shader);
             }
+        }
+
+        void OnEnable()
+        {
+            if (commandBuffer == null) { init(); }
+            cam.AddCommandBuffer(CameraEvent.AfterSkybox, commandBuffer);
+        }
+
+        void OnDisable()
+        {
+            cam.RemoveCommandBuffer(CameraEvent.AfterSkybox, commandBuffer);
         }
 
         RenderTargetIdentifier renderGBuffer()
