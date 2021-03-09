@@ -20,7 +20,7 @@ namespace WCGL
                 var renderer = mesh;
                 if (renderer == null || renderer.enabled == false) return;
 
-                if (phase == DeferredInkingCamera.RenderPhase.GBuffer || material.GetTag("LineType", false) == "DeferredInking")
+                if (phase == DeferredInkingCamera.RenderPhase.GBuffer || material.shader == DeferredInkingLineShader)
                 {
                     var id = new Vector2(modelID, meshID);
                     commandBuffer.SetGlobalVector("_ID", id);
@@ -42,6 +42,7 @@ namespace WCGL
         public static IReadOnlyList<DeferredInkingModel> GetInstances() { return Instances; }
 
         static Material GBufferMaterial;
+        static Shader DeferredInkingLineShader;
 
         [Range(1, 255)] public int modelID = 255;
         public List<Mesh> meshes = new List<Mesh>();
@@ -54,6 +55,8 @@ namespace WCGL
             {
                 var shader = Shader.Find("Hidden/DeferredInking/GBuffer");
                 GBufferMaterial = new Material(shader);
+
+                DeferredInkingLineShader = Shader.Find("DeferredInking/Line");
             }
         }
 
