@@ -15,7 +15,7 @@ namespace WCGL
             public Material material;
             [Range(0, 255)] public int meshID;
 
-            public void render(CommandBuffer commandBuffer, DeferredInkingCamera.RenderPhase phase, int modelID, Material GBufferMaterial)
+            public void render(CommandBuffer commandBuffer, DeferredInkingCamera.RenderPhase phase, int modelID)
             {
                 var renderer = mesh;
                 if (renderer == null || renderer.enabled == false) return;
@@ -43,12 +43,20 @@ namespace WCGL
         readonly static List<DeferredInkingModel> Instances = new List<DeferredInkingModel>();
         public static IReadOnlyList<DeferredInkingModel> GetInstances() { return Instances; }
 
+        static Material GBufferMaterial;
+
         [Range(1, 255)] public int modelID = 255;
         public List<Mesh> meshes = new List<Mesh>();
 
         void OnEnable()
         {
             Instances.Add(this);
+
+            if (GBufferMaterial == null)
+            {
+                var shader = Shader.Find("Hidden/DeferredInking/GBuffer");
+                GBufferMaterial = new Material(shader);
+            }
         }
 
         void OnDisable()
@@ -56,11 +64,11 @@ namespace WCGL
             Instances.Remove(this);
         }
 
-        public void render(CommandBuffer commandBuffer, DeferredInkingCamera.RenderPhase phase, Material GBufferMaterial)
+        public void render(CommandBuffer commandBuffer, DeferredInkingCamera.RenderPhase phase)
         {
             foreach (var mesh in meshes)
             {
-                mesh.render(commandBuffer, phase, modelID, GBufferMaterial);
+                mesh.render(commandBuffer, phase, modelID);
             }
         }
     }

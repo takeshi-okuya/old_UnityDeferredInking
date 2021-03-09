@@ -9,7 +9,7 @@ namespace WCGL
     [ExecuteInEditMode]
     public class DeferredInkingCamera : MonoBehaviour
     {
-        static Material DrawMaterial, GBufferMaterial;
+        static Material DrawMaterial;
 
         Camera cam;
         CommandBuffer commandBuffer;
@@ -83,9 +83,6 @@ namespace WCGL
             {
                 var shader = Shader.Find("Hidden/DeferredInking/Draw");
                 DrawMaterial = new Material(shader);
-
-                shader = Shader.Find("Hidden/DeferredInking/GBuffer");
-                GBufferMaterial = new Material(shader);
             }
         }
 
@@ -203,7 +200,7 @@ namespace WCGL
         {
             foreach (var model in DeferredInkingModel.GetInstances())
             {
-                model.render(commandBuffer, phase, GBufferMaterial);
+                model.render(commandBuffer, phase);
             }
         }
 
