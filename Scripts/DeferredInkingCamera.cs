@@ -105,7 +105,7 @@ namespace WCGL
 
             commandBuffer.SetRenderTarget(gBuffer.colorBuffer, depthBuffer);
             commandBuffer.ClearRenderTarget(false, true, Color.clear);
-            render(RenderPhase.GBuffer);
+            DeferredInkingModel.RenderActiveInstances(commandBuffer, RenderPhase.GBuffer);
 
             return depthBuffer;
         }
@@ -120,7 +120,7 @@ namespace WCGL
             if (cam.orthographic) { commandBuffer.EnableShaderKeyword("_ORTHO_ON"); }
             else { commandBuffer.DisableShaderKeyword("_ORTHO_ON"); }
 
-            render(RenderPhase.Line);
+            DeferredInkingModel.RenderActiveInstances(commandBuffer, RenderPhase.Line);
         }
 
         void renewFilter()
@@ -182,17 +182,6 @@ namespace WCGL
                         if (passIndex >= 0) { commandBuffer.DrawRenderer(r, mat, i, passIndex); }
                     }
                 }
-            }
-        }
-
-        private void render(RenderPhase phase)
-        {
-            IReadOnlyList<DeferredInkingModel> models = DeferredInkingModel.GetInstances();
-
-            //Don't use foreach, reduce GC Alloc.
-            for(int i=0; i<models.Count; i++)
-            {
-                models[i].render(commandBuffer, phase);
             }
         }
 

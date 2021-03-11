@@ -38,9 +38,7 @@ namespace WCGL
             }
         }
 
-        readonly static List<DeferredInkingModel> Instances = new List<DeferredInkingModel>();
-        public static IReadOnlyList<DeferredInkingModel> GetInstances() { return Instances; }
-
+        static List<DeferredInkingModel> Instances = new List<DeferredInkingModel>();
         static Material GBufferMaterial;
         static Shader DeferredInkingLineShader;
 
@@ -65,11 +63,14 @@ namespace WCGL
             Instances.Remove(this);
         }
 
-        public void render(CommandBuffer commandBuffer, DeferredInkingCamera.RenderPhase phase)
+        public static void RenderActiveInstances(CommandBuffer commandBuffer, DeferredInkingCamera.RenderPhase phase)
         {
-            foreach (var mesh in meshes)
+            foreach (var model in Instances)
             {
-                mesh.render(commandBuffer, phase, modelID);
+                foreach (var mesh in model.meshes)
+                {
+                    mesh.render(commandBuffer, phase, model.modelID);
+                }
             }
         }
     }
