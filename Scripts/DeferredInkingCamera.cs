@@ -48,7 +48,7 @@ namespace WCGL
                 (gBufferDepth == null || gBufferDepth.width != gbSize.x || gBufferDepth.height != gbSize.y))
             {
                 if (gBufferDepth != null) gBufferDepth.Release();
-                gBufferDepth = new RenderTexture(gbSize.x, gbSize.y, 16, RenderTextureFormat.Depth);
+                gBufferDepth = new RenderTexture(gbSize.x, gbSize.y, 24, RenderTextureFormat.Depth);
                 gBufferDepth.name = "DeferredInking_G-BufferDepth";
                 gBufferDepth.wrapMode = TextureWrapMode.Clamp;
                 gBufferDepth.filterMode = FilterMode.Point;
