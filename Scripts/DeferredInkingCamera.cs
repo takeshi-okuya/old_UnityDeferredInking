@@ -39,7 +39,7 @@ namespace WCGL
             {
                 if (gBuffer != null) gBuffer.Release();
                 gBuffer = new RenderTexture(gbSize.x, gbSize.y, 0, RenderTextureFormat.ARGB32);
-                gBuffer.name = "DeferredInking_G-Buffer";
+                gBuffer.name = "DeferredInking_G-Buffer_Normal_ID";
                 gBuffer.wrapMode = TextureWrapMode.Clamp;
                 gBuffer.filterMode = FilterMode.Point;
             }
@@ -49,7 +49,7 @@ namespace WCGL
             {
                 if (gBufferDepth != null) gBufferDepth.Release();
                 gBufferDepth = new RenderTexture(gbSize.x, gbSize.y, 24, RenderTextureFormat.Depth);
-                gBufferDepth.name = "DeferredInking_G-BufferDepth";
+                gBufferDepth.name = "DeferredInking_G-Buffer_Depth";
                 gBufferDepth.wrapMode = TextureWrapMode.Clamp;
                 gBufferDepth.filterMode = FilterMode.Point;
             }
@@ -99,9 +99,16 @@ namespace WCGL
 
         RenderTargetIdentifier renderGBuffer()
         {
-            var depthBuffer = (gBufferResolutionMode == ResolutionMode.Same) ?
-                (RenderTargetIdentifier)BuiltinRenderTextureType.Depth : gBufferDepth;
-            if (depthBuffer == gBufferDepth) renderGBufferDepth();
+            RenderTargetIdentifier depthBuffer;
+            if (gBufferResolutionMode == ResolutionMode.Same)
+            {
+                depthBuffer = (RenderTargetIdentifier)BuiltinRenderTextureType.Depth;
+            }
+            else
+            {
+                depthBuffer = gBufferDepth.depthBuffer;
+                renderGBufferDepth();
+            }
 
             commandBuffer.SetRenderTarget(gBuffer.colorBuffer, depthBuffer);
             commandBuffer.ClearRenderTarget(false, true, Color.clear);
@@ -162,8 +169,8 @@ namespace WCGL
         static List<Material> _SharedMaterials = new List<Material>();
         private void renderGBufferDepth()
         {
-            commandBuffer.SetRenderTarget(gBuffer, gBufferDepth);
-            commandBuffer.ClearRenderTarget(true, true, Color.clear);
+            commandBuffer.SetRenderTarget(gBufferDepth);
+            commandBuffer.ClearRenderTarget(true, false, Color.clear);
             commandBuffer.SetGlobalVector("unity_LightShadowBias", Vector4.zero);
 
             gameObject.scene.GetRootGameObjects(_RootGameObjects);
