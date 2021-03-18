@@ -58,8 +58,7 @@
             {
                 float4 vertex : POSITION0;
                 float2 projXY : TEXCOORD0;
-                float3 viewPos : TEXCOORD1;
-                float width : TEXCOORD2;
+                float4 viewPos_width : TEXCOORD1; //xyz: viewPos, w: width
 
                 #ifdef _USE_NORMAL_ON
                 float3 normal : NORMAL0;
@@ -121,8 +120,8 @@
                 v2g o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.projXY = o.vertex.xy / o.vertex.w;
-                o.viewPos = UnityObjectToViewPos(v.vertex);
-                o.width = compWidth(-o.viewPos.z);
+                o.viewPos_width.xyz = UnityObjectToViewPos(v.vertex);
+                o.viewPos_width.w = compWidth(-o.viewPos_width.z);
 
                 #ifdef _USE_NORMAL_ON
                     o.normal = COMPUTE_VIEW_NORMAL;
@@ -165,7 +164,7 @@
             g2f generatePoint(v2g p, float2 direction)
             {
                 g2f o;
-                float4 translate = float4(p.width * direction * p.vertex.w, 0, 0);
+                float4 translate = float4(p.viewPos_width.w * direction * p.vertex.w, 0, 0);
                 o.vertex = p.vertex + translate;
 
                 o.centerScreenPosXY = (p.projXY + 1.0f) * 0.5f;
@@ -173,14 +172,14 @@
                     o.centerScreenPosXY.y = 1 - o.centerScreenPosXY.y;
                 #endif
 
-                o.centerViewPosZ = -p.viewPos.z;
+                o.centerViewPosZ = -p.viewPos_width.z;
 
                 #ifdef _USE_NORMAL_ON
                     o.normal = p.normal;
                 #endif
 
                 #ifdef _FILL_CORNER_ON
-                    o.corner = float2(p.width * 0.5f, 0);
+                    o.corner = float2(p.viewPos_width.w * 0.5f, 0);
                 #endif
 
                 return o;
@@ -217,7 +216,7 @@
                 dst[2] = generatePoint(p2, right);
                 dst[3] = generatePoint(p2, -right);
 
-                appendTSLine(dst, v12, p1.width, ts);
+                appendTSLine(dst, v12, p1.viewPos_width.w, ts);
             }
 
         #ifdef _FILL_CORNER_ON
