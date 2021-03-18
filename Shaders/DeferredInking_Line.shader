@@ -72,12 +72,14 @@
             struct g2f
             {
                 float4 vertex : SV_POSITION;
-                float3 center : POSITION1;
+                noperspective float2 centerProjPosXY : TEXCOORD1;
+                float centerViewPosZ : TEXCOORD2;
+
                 #ifdef _USE_NORMAL_ON
-                float3 normal : TEXCOORD0;
+                float3 normal : TEXCOORD3;
                 #endif
                 #ifdef _FILL_CORNER_ON
-                float2 corner : TEXCOORD1; //x:width, y:isCorner(1 or 0).
+                float2 corner : TEXCOORD4; //x:width, y:isCorner(1 or 0).
                 #endif
             };
 
@@ -186,11 +188,13 @@
                 #ifdef _ORTHO_ON
                     float2 xy = p.vertex.xy + translate;
                     o.vertex = float4(xy, p.vertex.z, 1);
-                    o.center = p.vertex.xyw;
+                    o.centerProjPosXY = p.vertex.xy;
+                    o.centerViewPosZ = p.vertex.w;
                 #else
                     float2 xy = (p.projXY + translate) * p.vertex.w;
                     o.vertex = float4(xy, p.vertex.zw);
-                    o.center = float3(p.projXY, p.vertex.w);
+                    o.centerProjPosXY = p.projXY;
+                    o.centerViewPosZ = p.vertex.w;
                 #endif
 
                 #ifdef _USE_NORMAL_ON
@@ -263,7 +267,7 @@
 
                 float2 vpos = (i.vertex.xy + 0.5) / _ScreenParams.xy * 2.0 - 1.0;
                 vpos.y = -vpos.y;
-                float2 sub = i.center.xy - vpos;
+                float2 sub = i.centerProjPosXY - vpos;
                 float aspect = (-UNITY_MATRIX_P[1][1]) / UNITY_MATRIX_P[0][0];
                 sub.x *= aspect;
 
@@ -369,7 +373,7 @@
                     clipCorner(i);
                 #endif
 
-                float2 uv = (i.center.xy + 1.0f) * 0.5f;
+                float2 uv = (i.centerProjPosXY + 1.0f) * 0.5f;
                 #if UNITY_UV_STARTS_AT_TOP == 1
                     uv.y = 1 - uv.y;
                 #endif
@@ -383,21 +387,21 @@
                 #endif
 
                 clip(any(isSameIDs) - 0.1f);
-                clipDepthID(i.vertex.xy, i.center.z);
+                clipDepthID(i.vertex.xy, i.centerViewPosZ);
 
                 bool isDraw = false;
                 float3x3 depths = sampleDepths(uv);
 
                 #ifdef _USE_OBJECT_ID_ON
-                    isDraw = isDraw || any(!isSameIDs && (depths > i.center.z));
+                    isDraw = isDraw || any(!isSameIDs && (depths > i.centerViewPosZ));
                 #endif
 
                 #ifdef _USE_DEPTH_ON
-                    isDraw = isDraw || any(depths - i.center.z > _DepthThreshold);
+                    isDraw = isDraw || any(depths - i.centerViewPosZ > _DepthThreshold);
                 #endif
 
                 #ifdef _USE_NORMAL_ON
-                    isDraw = isDraw || detectNormal(i.normal, i.center.z, normals, depths);
+                    isDraw = isDraw || detectNormal(i.normal, i.centerViewPosZ, normals, depths);
                 #endif
 
                 clip(isDraw - 0.1f);
