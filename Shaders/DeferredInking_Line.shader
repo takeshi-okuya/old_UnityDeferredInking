@@ -45,7 +45,6 @@
             #pragma multi_compile _ _USE_DEPTH_ON
             #pragma multi_compile _ _USE_NORMAL_ON
             #pragma multi_compile _ _FILL_CORNER_ON
-            #pragma multi_compile _ _ORTHO_ON
 
             struct appdata
             {
@@ -58,11 +57,9 @@
             struct v2g
             {
                 float4 vertex : POSITION0;
-                float width : TEXCOORD0;
-
-                #if !defined(_ORTHO_ON)
-                float2 projXY : POSITION1;
-                #endif
+                float2 projXY : TEXCOORD0;
+                float3 viewPos : TEXCOORD1;
+                float width : TEXCOORD2;
 
                 #ifdef _USE_NORMAL_ON
                 float3 normal : NORMAL0;
@@ -123,14 +120,9 @@
             {
                 v2g o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
-
-                #ifdef _ORTHO_ON
-                    o.vertex.w = -UnityObjectToViewPos(v.vertex).z;
-                #else
-                    o.projXY = o.vertex.xy / o.vertex.w;
-                #endif
-
-                o.width = compWidth(o.vertex.w);
+                o.projXY = o.vertex.xy / o.vertex.w;
+                o.viewPos = UnityObjectToViewPos(v.vertex);
+                o.width = compWidth(-o.viewPos.z);
 
                 #ifdef _USE_NORMAL_ON
                     o.normal = COMPUTE_VIEW_NORMAL;
@@ -141,13 +133,8 @@
 
             bool culling(v2g input[3])
             {
-                #ifdef _ORTHO_ON
-                    float3 v01 = float3(input[1].vertex.xy - input[0].vertex.xy, 0);
-                    float3 v02 = float3(input[2].vertex.xy - input[0].vertex.xy, 0);
-                #else
-                    float3 v01 = float3(input[1].projXY - input[0].projXY, 0);
-                    float3 v02 = float3(input[2].projXY - input[0].projXY, 0);
-                #endif
+                float3 v01 = float3(input[1].projXY - input[0].projXY, 0);
+                float3 v02 = float3(input[2].projXY - input[0].projXY, 0);
                 float c = cross(v01, v02).z;
 
                 bool isFrontFace;
@@ -166,12 +153,7 @@
 
             void compDirection(v2g p1, v2g p2, float aspect, out float2 v12, out float2 right)
             {
-                #ifdef _ORTHO_ON
-                    v12 = p2.vertex.xy - p1.vertex.xy;
-                #else
-                    v12 = p2.projXY - p1.projXY;
-                #endif
-
+                v12 = p2.projXY - p1.projXY;
                 v12.x *= aspect;
                 v12 = normalize(v12);
                 right = float2(-v12.y, v12.x);
@@ -183,23 +165,15 @@
             g2f generatePoint(v2g p, float2 direction)
             {
                 g2f o;
-                float2 translate = p.width * direction;
+                float4 translate = float4(p.width * direction * p.vertex.w, 0, 0);
+                o.vertex = p.vertex + translate;
 
-                #ifdef _ORTHO_ON
-                    float2 xy = p.vertex.xy + translate;
-                    o.vertex = float4(xy, p.vertex.z, 1);
-                    o.centerScreenPosXY = (p.vertex.xy + 1.0f) * 0.5f;
-                    o.centerViewPosZ = p.vertex.w;
-                #else
-                    float2 xy = (p.projXY + translate) * p.vertex.w;
-                    o.vertex = float4(xy, p.vertex.zw);
-                    o.centerScreenPosXY = (p.projXY + 1.0f) * 0.5f;
-                    o.centerViewPosZ = p.vertex.w;
-                #endif
-
+                o.centerScreenPosXY = (p.projXY + 1.0f) * 0.5f;
                 #if UNITY_UV_STARTS_AT_TOP == 1
                     o.centerScreenPosXY.y = 1 - o.centerScreenPosXY.y;
                 #endif
+
+                o.centerViewPosZ = -p.viewPos.z;
 
                 #ifdef _USE_NORMAL_ON
                     o.normal = p.normal;
@@ -282,14 +256,14 @@
             {
                 float gbDepth = _GBufferDepth.Sample(my_point_clamp_sampler, uv).x;
 
-                #ifdef _ORTHO_ON
+                if (unity_OrthoParams.w == 1.0f) { //ORTHO
                     #if !defined(UNITY_REVERSED_Z)
                         gbDepth = 2 * gbDepth - 1;
                     #endif
                     return -(gbDepth - UNITY_MATRIX_P[2][3]) / UNITY_MATRIX_P[2][2];
-                #else
+                } else {
                     return DECODE_EYEDEPTH(gbDepth);
-                #endif
+                }
             }
 
             bool isSameID(float2 id)
