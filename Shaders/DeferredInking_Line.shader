@@ -72,14 +72,14 @@
             struct g2f
             {
                 float4 vertex : SV_POSITION;
-                noperspective float2 centerProjPosXY : TEXCOORD1;
+                noperspective float2 centerScreenPosXY : TEXCOORD1;
                 float centerViewPosZ : TEXCOORD2;
 
                 #ifdef _USE_NORMAL_ON
                 float3 normal : TEXCOORD3;
                 #endif
                 #ifdef _FILL_CORNER_ON
-                float2 corner : TEXCOORD4; //x:width, y:isCorner(1 or 0).
+                float2 corner : TEXCOORD4; //x:radius, y:isCorner(1 or 0).
                 #endif
             };
 
@@ -188,13 +188,17 @@
                 #ifdef _ORTHO_ON
                     float2 xy = p.vertex.xy + translate;
                     o.vertex = float4(xy, p.vertex.z, 1);
-                    o.centerProjPosXY = p.vertex.xy;
+                    o.centerScreenPosXY = (p.vertex.xy + 1.0f) * 0.5f;
                     o.centerViewPosZ = p.vertex.w;
                 #else
                     float2 xy = (p.projXY + translate) * p.vertex.w;
                     o.vertex = float4(xy, p.vertex.zw);
-                    o.centerProjPosXY = p.projXY;
+                    o.centerScreenPosXY = (p.projXY + 1.0f) * 0.5f;
                     o.centerViewPosZ = p.vertex.w;
+                #endif
+
+                #if UNITY_UV_STARTS_AT_TOP == 1
+                    o.centerScreenPosXY.y = 1 - o.centerScreenPosXY.y;
                 #endif
 
                 #ifdef _USE_NORMAL_ON
@@ -202,20 +206,20 @@
                 #endif
 
                 #ifdef _FILL_CORNER_ON
-                    o.corner = float2(p.width, 0);
+                    o.corner = float2(p.width * 0.5f, 0);
                 #endif
 
                 return o;
             }
 
-            void appendTSLine(in g2f dst[4], float2 direction12, inout TriangleStream<g2f> ts)
+            void appendTSLine(in g2f dst[4], float2 direction12, float p1Width, inout TriangleStream<g2f> ts)
             {
                 #ifdef _FILL_CORNER_ON
                     g2f o = dst[0];
                     o.corner.y = 1;
-                    o.vertex.xy -= direction12 * o.corner.x * o.vertex.w;
+                    o.vertex.xy -= direction12 * p1Width * o.vertex.w;
                     ts.Append(o);
-                    o.vertex.xy = dst[1].vertex.xy - direction12 * o.corner.x * o.vertex.w;
+                    o.vertex.xy = dst[1].vertex.xy - direction12 * p1Width * o.vertex.w;
                     ts.Append(o);
                 #endif
 
@@ -239,7 +243,7 @@
                 dst[2] = generatePoint(p2, right);
                 dst[3] = generatePoint(p2, -right);
 
-                appendTSLine(dst, v12, ts);
+                appendTSLine(dst, v12, p1.width, ts);
             }
 
         #ifdef _FILL_CORNER_ON
@@ -263,15 +267,14 @@
         #ifdef _FILL_CORNER_ON
             void clipCorner(g2f i)
             {
-                float width = i.corner.x;
+                float radius = i.corner.x;
 
-                float2 vpos = (i.vertex.xy + 0.5) / _ScreenParams.xy * 2.0 - 1.0;
-                vpos.y = -vpos.y;
-                float2 sub = i.centerProjPosXY - vpos;
+                float2 vpos = (i.vertex.xy + 0.5f) / _ScreenParams.xy;
+                float2 sub = i.centerScreenPosXY - vpos;
                 float aspect = (-UNITY_MATRIX_P[1][1]) / UNITY_MATRIX_P[0][0];
                 sub.x *= aspect;
 
-                clip((i.corner.y == 0 || dot(sub, sub) < width * width) - 0.1);
+                clip((i.corner.y == 0 || dot(sub, sub) < radius * radius) - 0.1);
             }
         #endif
 
@@ -373,11 +376,7 @@
                     clipCorner(i);
                 #endif
 
-                float2 uv = (i.centerProjPosXY + 1.0f) * 0.5f;
-                #if UNITY_UV_STARTS_AT_TOP == 1
-                    uv.y = 1 - uv.y;
-                #endif
-
+                float2 uv = i.centerScreenPosXY;
                 bool3x3 isSameIDs;
                 #ifdef _USE_NORMAL_ON
                     float2 normals[3][3];
