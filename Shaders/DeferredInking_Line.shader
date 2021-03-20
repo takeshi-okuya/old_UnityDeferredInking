@@ -2,7 +2,7 @@
 {
     Properties
     {
-        [KeywordEnum(Off, Front, Back)] _Cull("Culling", Float) = 2
+        [Enum(Off, 0, Front, 1, Back, 2)] _Cull("Culling", INT) = 2
         _Color("Color", Color) = (0, 0, 0, 1)
 
         [Header(Outline Width)]
@@ -38,7 +38,6 @@
 
             #include "UnityCG.cginc"
 
-            #pragma multi_compile _CULL_OFF _CULL_FRONT _CULL_BACK
             #pragma multi_compile _ _USE_OBJECT_ID_ON
             #pragma multi_compile _ _USE_DEPTH_ON
             #pragma multi_compile _ _USE_NORMAL_ON
@@ -85,6 +84,8 @@
             float _MinWidth;
             float _MaxWidth;
 
+            int _Cull;
+
             float _DepthThreshold;
             float _NormalThreshold;
             float _DepthRange;
@@ -125,24 +126,26 @@
                 return o;
             }
 
-            bool culling(v2g input[3])
+            bool isFrontFace(v2g input[3])
             {
                 float3 v01 = float3(input[1].projXY - input[0].projXY, 0);
                 float3 v02 = float3(input[2].projXY - input[0].projXY, 0);
                 float c = cross(v01, v02).z;
 
-                bool isFrontFace;
                 #ifdef UNITY_REVERSED_Z
-                    isFrontFace = c >= 0;
+                    return c >= 0;
                 #else
-                    isFrontFace = c <= 0;
+                    return c <= 0;
                 #endif
+            }
 
-                #ifdef _CULL_FRONT
-                    return isFrontFace;
-                #elif _CULL_BACK
-                    return !isFrontFace;
-                #endif
+            bool culling(v2g input[3])
+            {
+                if (_Cull == 0) { return false; } // 0: Off
+
+                bool frontFace = isFrontFace(input);
+                bool frontCull = _Cull == 1; // 1: Front, 2:Back
+                return frontFace == frontCull;
             }
 
             void compDirection(v2g p1, v2g p2, float aspect, out float2 v12, out float2 right)
