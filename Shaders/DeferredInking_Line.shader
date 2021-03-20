@@ -39,8 +39,6 @@
             #include "UnityCG.cginc"
 
             #pragma multi_compile _CULL_OFF _CULL_FRONT _CULL_BACK
-            #pragma multi_compile _ _WIDTH_BY_DISTANCE_ON
-            #pragma multi_compile _ _WIDTH_BY_FOV_ON
             #pragma multi_compile _ _USE_OBJECT_ID_ON
             #pragma multi_compile _ _USE_DEPTH_ON
             #pragma multi_compile _ _USE_NORMAL_ON
@@ -82,6 +80,8 @@
             fixed4 _Color;
 
             float _OutlineWidth;
+            float _Width_By_Distance;
+            float _Width_By_FoV;
             float _MinWidth;
             float _MaxWidth;
 
@@ -99,18 +99,13 @@
             float compWidth(float distance)
             {
                 float width = _OutlineWidth;
+                width = lerp(width, width / distance, _Width_By_Distance);
+                width = lerp(width, width * unity_CameraProjection[1][1] / 4.167f, _Width_By_FoV); //4.167: cot(27deg/2). 27deg: 50mm
 
-                #ifdef _WIDTH_BY_DISTANCE_ON
-                    width /= distance;
-                #endif
-
-                #ifdef _WIDTH_BY_FOV_ON
-                    width *= unity_CameraProjection[1][1] / 4.167;
-                #endif
-
-                #if defined(_WIDTH_BY_DISTANCE_ON) || defined(_WIDTH_BY_FOV_ON)
+                if (_Width_By_Distance == 1.f || _Width_By_FoV == 1.f)
+                {
                     width = clamp(width, _MinWidth, _MaxWidth);
-                #endif
+                }
 
                 return width * 0.001f;
             }
