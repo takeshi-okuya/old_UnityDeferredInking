@@ -16,7 +16,7 @@
         [Enum(Off, 255, Sufficiency, 0, Necessary, 1, Not, 2)] _DifferentModelID("Different Model ID", INT) = 0
         [Enum(Off, 255, Sufficiency, 0, Necessary, 1, Not, 2)] _DifferentMeshID("Different Mesh ID", INT) = 0
         [Space]
-        [Toggle] _Use_Depth("Use Depth", Float) = 0
+        [Enum(Off, 255, Sufficiency, 0, Necessary, 1, Not, 2)] _Use_Depth("Use Depth", INT) = 0
         _DepthThreshold("Threshold_Depth", FLOAT) = 2.0
         [Space]
         [Toggle] _Use_Normal("Use Normal", Float) = 0
@@ -39,8 +39,6 @@
 
             #include "UnityCG.cginc"
 
-            #pragma multi_compile _ _USE_OBJECT_ID_ON
-            #pragma multi_compile _ _USE_DEPTH_ON
             #pragma multi_compile _ _USE_NORMAL_ON
             #pragma multi_compile _ _FILL_CORNER_ON
 
@@ -90,7 +88,9 @@
             int _DifferentModelID;
             int _DifferentMeshID;
 
+            int _Use_Depth;
             float _DepthThreshold;
+
             float _NormalThreshold;
             float _DepthRange;
 
@@ -405,15 +405,17 @@
                     addConditions(_DifferentMeshID, isFill, isDrawTimes, isDrawTrues);
                 }
 
+                if (_Use_Depth != 255)
+                {
+                    bool isFill = any(depths - i.centerViewPosZ > _DepthThreshold);
+                    addConditions(_Use_Depth, isFill, isDrawTimes, isDrawTrues);
+                }
+
                 if (isDrawTrues.x + isDrawTrues.y == 0 || isDrawTimes.y != isDrawTrues.y || isDrawTrues.z > 0)
                 {
                     clip(-1);
                 }
                 return _Color;
-
-                //#ifdef _USE_DEPTH_ON
-                //    isDraw = isDraw || any(depths - i.centerViewPosZ > _DepthThreshold);
-                //#endif
 
                 //#ifdef _USE_NORMAL_ON
                 //    isDraw = isDraw || detectNormal(i.normal, i.centerViewPosZ, normals, depths);
