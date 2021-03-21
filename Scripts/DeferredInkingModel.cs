@@ -18,7 +18,7 @@ namespace WCGL
             public void render(CommandBuffer commandBuffer, DeferredInkingCamera.RenderPhase phase, int modelID)
             {
                 var renderer = mesh;
-                if (renderer == null || renderer.isVisible == false) return;
+                if (renderer == null || renderer.isVisible == false || material == null) return;
 
                 if (phase == DeferredInkingCamera.RenderPhase.GBuffer || material.shader == DeferredInkingLineShader)
                 {
