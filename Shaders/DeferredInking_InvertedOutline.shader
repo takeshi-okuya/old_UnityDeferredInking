@@ -41,6 +41,8 @@
 
             fixed4 _Color;
             float _OutlineWidth;
+            float _Width_By_Distance;
+            float _Width_By_FoV;
             float _MinWidth;
             float _MaxWidth;
 
@@ -50,26 +52,20 @@
             {
                 float width = _OutlineWidth;
 
-                #if !defined(_ORTHO_ON) && !defined(_WIDTH_BY_DISTANCE_ON)
+                if (unity_OrthoParams.w == 0.f && _Width_By_Distance == 0.f) {
                     width *= distance;
-                #elif defined(_ORTHO_ON) && defined(_WIDTH_BY_DISTANCE_ON)
+                } else if (unity_OrthoParams.w && _Width_By_Distance) {
                     width /= distance;
-                #endif
+                }
 
-                #ifdef _WIDTH_BY_FOV_ON
-                    width /= 4.167;
-                #else
-                    width /= unity_CameraProjection[1][1];
-                #endif
+                float fovScale = lerp(unity_CameraProjection[1][1], 4.167, _Width_By_FoV); //4.167: cot(27deg/2). 27deg: 50mm 
+                width /= fovScale;
 
-                #if defined(_WIDTH_BY_DISTANCE_ON) || defined(_WIDTH_BY_FOV_ON)
-                    #ifdef _ORTHO_ON
-                        float scale = 1.0f / unity_CameraProjection[1][1];
-                    #else
-                        float scale = distance / unity_CameraProjection[1][1];
-                    #endif
+                if (_Width_By_Distance || _Width_By_Distance) {
+                    float scale = lerp(distance, 1.0f, unity_OrthoParams.w);
+                    scale /= unity_CameraProjection[1][1];
                     width = clamp(width, _MinWidth * scale, _MaxWidth * scale);
-                #endif
+                }
 
                 return width * 2.0 * 0.001f;
             }
